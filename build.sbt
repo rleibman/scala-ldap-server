@@ -25,13 +25,15 @@ scalaVersion := "2.11.7"
 
 lazy val akkaVersion = "2.4.2"
 
-libraryDependencies ++= Seq(
-  "com.typesafe.akka" %% "akka-actor" % akkaVersion,
-  "com.typesafe.akka" %% "akka-testkit" % akkaVersion,
-  "org.scalatest" %% "scalatest" % "2.2.6" % "test",
-  "junit" % "junit" % "4.12" % "test"
-)
+libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.14.0" withSources()
+libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
+libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
+libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.11.9" withSources()
+
+libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.6" % "test" withSources()
+libraryDependencies += "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % "compile,  test" withSources()
 
 Revolver.settings
+//Revolver.enableDebugging(port = 9999, suspend = true)
 
 fork in run := true

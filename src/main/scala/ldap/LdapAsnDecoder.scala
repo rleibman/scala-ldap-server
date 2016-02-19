@@ -14,6 +14,8 @@
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
+package ldap
+
 import asn1._
 
 object LdapAsn1Decoder {
@@ -22,6 +24,10 @@ object LdapAsn1Decoder {
       case BindResponse(LdapResult(opResult, matchedDN, diagnosticMessage, referral), serverSaslCreds) ⇒
         //TODO do something with referral and serverSaslCreds
         Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(1, Asn1Enumerated(opResult), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
+      case SearchResultEntry(dn: String, attributes: Map[String, Seq[String]]) ⇒
+        Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn)))
+      case SearchResultDone(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
+        Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
     }
   }
   def decode(asn1: Asn1Object): LdapMessage = {
@@ -46,7 +52,7 @@ object LdapAsn1Decoder {
       case 1 ⇒ //bindResponse
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 2 ⇒ //unbindRequest
-        throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
+        UnbindRequest()
       case 3 ⇒ { //SearchRequest
         //        request = Asn1Sequence(List(Asn1Byte(2), Asn1Application(3,List(Asn1String(), Asn1Enumerated(0), Asn1Enumerated(3), Asn1Byte(0), Asn1Byte(0), Asn1False, Asn1ContextSpecific(6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x43, 0x6c, 0x61, 0x73, 0x73)))))
         applicationAsn1.value.toSeq match {

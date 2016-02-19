@@ -25,7 +25,8 @@ For setting up & starting the project locally, use:
 $ git clone https://github.com/rleibman/scala-ldap-server
 $ cd scala-ldap-server
 $ sbt run
-cd -```
+cd -
+```
 
 ## License
 
