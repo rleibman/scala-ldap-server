@@ -64,28 +64,60 @@ object LdapServer extends App with Config {
     val dao = new MongoDAO()
     val fut = for {
       root ← dao.getNode("")
-      if (root.isEmpty)
-      root2 ← dao.update(Node(id = "",
-        dn = "",
-        attributes = Map(
-          "objectClass" -> List("top"),
-          "configContext" -> List("cn=config"),
-          "namingContexts" -> List(baseDN),
-          "supportedLDAPVersion" -> List("3"),
-          "supportedSASLMechanisms" -> List("LOGIN", "PLAIN")),
-        parentId = None,
-        children = Seq()))
-      base ← dao.update(Node(id = "",
-        dn = baseDN,
-        attributes = Map(
-          "objectClass" -> List("top", "dcObject", "organization"),
-          "dc" -> List("example"),
-          "o" -> List("example"),
-          "ou" -> List("example"),
-          "description" -> List("example")),
-        parentId = Some(root2.id),
-        children = Seq()))
-      updatedRoot ← dao.update(root2.copy(children = List(base.id)))
+      root2 ← if (root.isEmpty) {
+        dao.update(Node(id = "",
+          dn = "",
+          attributes = Map(
+            "objectClass" -> List("top"),
+            "entryDN" -> List(""),
+            "configContext" -> List("cn=config"),
+            "subschemaSubentry" -> List("cn=Subschema"),
+            "namingContexts" -> List(baseDN),
+            "supportedLDAPVersion" -> List("3"),
+            "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
+            "vendorName" -> List("scala-ldap-server"),
+            "vendorVersion" -> List("0.0.1")),
+          parentId = None))
+      } else {
+        Future.successful(root.get)
+      }
+      base ← dao.getNode(baseDN)
+      base2 ← if (base.isEmpty) {
+        dao.update(Node(id = "",
+          dn = baseDN,
+          attributes = Map(
+            "objectClass" -> List("top", "dcObject", "organization"),
+            "dc" -> List("example"),
+            "o" -> List("example"),
+            "ou" -> List("example"),
+            "description" -> List("example")),
+          parentId = Some(root2.id)))
+      } else {
+        Future.successful(base.get)
+      }
+      firstLevel ← {
+        val firstLevelNodes = List(
+          Node(id = "", dn = "cn=admin", attributes = Map("objectClass" -> List("organizationalRole", "simpleSecurityObject"), "cn" -> List("admin")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=snapshots", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("snapshots")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=aclroles", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("aclroles")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=apps", attributes = Map(), parentId = Some(base2.id)),
+          Node(id = "", dn = "out=configs", attributes = Map(), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=configs", attributes = Map(), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=groups", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=people", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=policies", attributes = Map("objectClass" -> List("organizationalUnit", "top"), "ou" -> List("policies")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=roles", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("roles")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=sudoers", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("sudoers")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=systems", attributes = Map(), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=tokens", attributes = Map(), parentId = Some(base2.id)))
+        Future.sequence(firstLevelNodes.map { node ⇒
+          for {
+            gotNode ← dao.getNode(node.dn)
+            updatedNode ← if (gotNode.isEmpty) { dao.update(node) } else { Future.successful(gotNode.get) }
+          } yield (updatedNode)
+        })
+      }
+      updatedRoot ← dao.update(root2.copy(children = List(base2.id)))
     } yield (updatedRoot)
 
     val inited = Await.result(fut, 5 minutes)

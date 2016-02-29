@@ -25,8 +25,8 @@ object LDAPResultType extends Enumeration {
 }
 import LDAPResultType._
 
-trait MessageProtocolOp
-trait LdapAuthentication
+sealed trait MessageProtocolOp
+sealed trait LdapAuthentication
 case class LdapSimpleAuthentication(password: String) extends LdapAuthentication
 case class LdapSaslAuthentication(mechanism: String, credentials: Option[String] = None) extends LdapAuthentication
 case class LdapResult(opResult: LDAPResultType, matchedDN: String, diagnosticMessage: String, referral: List[URI] = List())
@@ -41,22 +41,22 @@ object DerefAliases extends Enumeration {
   val neverDerefAliases, derefInSearching, derefiFindingBaseObj, derefAlways = Value
 }
 import DerefAliases._
-trait Filter
+sealed trait Filter
 
 case class StringFilter(str: String) extends Filter
-case class AttributeSelection()
 
-trait SearchResult extends MessageProtocolOp
+sealed trait SearchResult extends MessageProtocolOp
 case class SearchResultEntry(dn: String, attributes: Map[String, Seq[String]]) extends SearchResult
 case class SearchResultDone(ldapResult: LdapResult) extends MessageProtocolOp
 case class SearchResultEntryReference() extends SearchResult
 
 case class UnbindRequest() extends MessageProtocolOp
+case class AbandonRequest(messageId: Long) extends MessageProtocolOp
 case class BindRequest(version: Byte, name: String, authChoice: LdapAuthentication) extends MessageProtocolOp
 case class BindResponse(ldapResult: LdapResult, serverSaslCreds: Option[String] = None) extends MessageProtocolOp
-case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAliases: DerefAliases, sizeLimit: Int, timeLimit: Int, typesOnly: Boolean, filter: Option[Filter] = None, attributes: Option[AttributeSelection] = None) extends MessageProtocolOp
+case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAliases: DerefAliases, sizeLimit: Int, timeLimit: Int, typesOnly: Boolean, filter: Option[Filter] = None, attributes: Seq[String] = Seq()) extends MessageProtocolOp
 
 case class LdapMessage(messageId: Long, protocolOp: MessageProtocolOp)
 
 //Used internally to represent the attributes
-case class Node(id: String, dn: String, attributes: Map[String, Seq[String]], parentId: Option[String], children: Seq[String])
+case class Node(id: String, dn: String, attributes: Map[String, Seq[String]], parentId: Option[String], children: Seq[String] = Seq())

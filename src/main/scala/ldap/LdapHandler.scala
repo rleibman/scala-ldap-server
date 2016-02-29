@@ -35,6 +35,18 @@ class LdapHandler extends Actor with Config {
   val log = Logging(context.system, getClass)
   def operate(msg: LdapMessage): Future[Seq[LdapMessage]] = {
     msg.protocolOp match {
+      case AbandonRequest(messageId) ⇒
+        /*
+         *  The function of the Abandon operation is to allow a client to request that the server abandon an uncompleted operation.
+         *  The MessageID is that of an operation that was requested earlier at this LDAP message layer.
+         *  The Abandon request itself has its own MessageID.  This is distinct from the MessageID of the earlier operation being abandoned.
+         *  There is no response defined in the Abandon operation.
+         *  Upon receipt of an AbandonRequest, the server MAY abandon the operation identified by the MessageID.  b
+         *  Since the client cannot tell the difference between a successfully abandoned operation and an uncompleted operation,
+         *  the application of the Abandon operation is limited to uses where the client does not require an indication of its outcome.
+         *
+         */
+        Future.successful { List() }
       case BindRequest(version, name, authChoice) ⇒
         Future.successful { List(LdapMessage(msg.messageId, BindResponse(LdapResult(success, name, "Auth successful")))) }
       case UnbindRequest() ⇒
@@ -53,20 +65,22 @@ class LdapHandler extends Actor with Config {
                 case None ⇒ List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)"))))
                 case Some(node) ⇒
                   List(
-                    LdapMessage(msg.messageId, SearchResultEntry(node.dn, node.attributes)),
+                    LdapMessage(msg.messageId, SearchResultEntry(node.dn, node.attributes.filter(a ⇒ attributes.contains(a._1)))),
                     LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found"))))
               }
             }
           case SearchRequestScope.singleLevel ⇒
-            val children = for {
+            val childrenFut = for {
               top ← dao.getNode(dn)
               children ← dao.getChildren(top.get)
             } yield (children)
-
-            Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
+            childrenFut.map(children ⇒
+              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(child.dn, child.attributes.filter(attributes.contains(_))))) :+
+                LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found"))))
           case SearchRequestScope.wholeSubtree ⇒
             Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
         }
+      case _ ⇒ throw new Error(s"${msg.protocolOp} not handled")
 
     }
   }

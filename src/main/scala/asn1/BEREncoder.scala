@@ -52,91 +52,106 @@ object BEREncoder extends Asn1Encoder {
     val bb = new ByteStringBuilder
 
     def loop(obj: Asn1Object, bb: ByteStringBuilder): ByteStringBuilder = {
+      def putSize(size: Long) = {
+        if (size < 0x80) {
+          bb.putByte((0x00 | size).toByte)
+        } else if (size == 0x80) {
+          throw new RuntimeException("Indefinite lengths not yet supported")
+        } else if (size < 0x100) {
+          bb.putByte((0x80 | 0x01).toByte)
+          bb.putByte(size.toByte)
+        } else if (size < 0x10000) {
+          bb.putByte((0x80 | 0x02).toByte)
+          bb.putShort(size.toShort)(ByteOrder.BIG_ENDIAN)
+        } else if (size < 0x100000000L) {
+          bb.putByte((0x80 | 0x04).toByte)
+          bb.putInt(size.toInt)(ByteOrder.BIG_ENDIAN)
+        } else {
+          bb.putByte((0x80 | 0x08).toByte)
+          bb.putLong(size)(ByteOrder.BIG_ENDIAN)
+        }
+      }
       obj match {
         case Asn1Null() ⇒
           bb
         //Do nothing
 
-        case Asn1ContextSpecific(value) ⇒
+        case Asn1ContextSpecific(tag, value) ⇒
           bb.putByte((0x80 //Class (context Specific)
             | 0x00 //Primitive or constructed (primitive)
-            | 0x00 //Tag (x)
+            | tag //Tag (x)
             ).toByte)
-          bb.putByte((0x00 //short form
-            | value.length //length
-            ).toByte)
+          putSize(value.length)
           bb.putBytes(value)
-        case Asn1Application(tag, value @ _*) ⇒
+        case Asn1Application(tag, value @ _*) ⇒ {
           val newBB = new ByteStringBuilder
           value.foreach(loop(_, newBB))
           val bytes = newBB.result()
           bb.putByte((0x40 //Class (application)
-            | 0x20 //Primitive or constructed (constructed)
+            | { if (bytes.size > 1) 0x20 else 0x00 } //Primitive or constructed (constructed)
             | tag //Tag (applicationTag)
             ).toByte)
-          bb.putByte((0x00 //short form
-            | bytes.size //length
-            ).toByte)
-          bb.putBytes(bytes.toArray)
+          if (bytes.size > 0) {
+            putSize(bytes.size)
+            bb.putBytes(bytes.toArray)
+          }
+          bb
+        }
         case Asn1Int(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x02 //Tag (int)
             ).toByte)
-          bb.putByte(0x00 //short form
-            | 0x04 //length
-            )
+          putSize(4)
           bb.putInt(value)(ByteOrder.BIG_ENDIAN)
         case Asn1Boolean(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x01 //Tag (int)
             ).toByte)
+          putSize(1)
           bb.putByte(if (value) 1 else 0)
         case Asn1Long(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x02 //Tag (int)
             ).toByte)
-          bb.putByte(0x00 //short form
-            | 0x08 //length
-            )
+          putSize(8)
           bb.putLong(value)(ByteOrder.BIG_ENDIAN)
         case Asn1Short(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x02 //Tag (int)
             ).toByte)
-          bb.putByte(0x00 //short form
-            | 0x02 //length
-            )
+          putSize(2)
           bb.putShort(value)(ByteOrder.BIG_ENDIAN)
+        case Asn1Zero() ⇒
+          bb.putByte((0x00 //Class (universal)
+            | 0x00 //Primitive or constructed (primitive)
+            | 0x02 //Tag (int)
+            ).toByte)
+          bb
         case Asn1Byte(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x02 //Tag (int)
             ).toByte)
-          bb.putByte(0x00 //short form
-            | 0x01 //length
-            )
+          putSize(1)
           bb.putByte(value)
+          bb
         case Asn1Enumerated(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x0a //Tag (enumerated)
             ).toByte)
-          bb.putByte(0x00 //short form
-            | 0x01 //length
-            )
+          putSize(1)
           bb.putByte(value)
         case Asn1String(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x04 //Tag (String)
             ).toByte)
-          bb.putByte((0x00 //short form
-            | value.size //length
-            ).toByte)
+          putSize(value.size)
           bb.putBytes(value.toCharArray().map(_.toByte))
         case Asn1Sequence(value @ _*) ⇒
           val newBB = new ByteStringBuilder
@@ -147,9 +162,7 @@ object BEREncoder extends Asn1Encoder {
             | 0x20 //Primitive or constructed (constructed)
             | 0x10 //Tag (x)
             ).toByte)
-          bb.putByte((0x00 //short form
-            | bytes.size //length
-            ).toByte)
+          putSize(bytes.size)
           bb.putBytes(bytes.toArray)
         case a ⇒ throw new Error(s"Unknown type of Asn1Object ${obj}")
       }
@@ -168,37 +181,50 @@ object BEREncoder extends Asn1Encoder {
       }
     }
     def once(iter: ByteIterator): Asn1Object = {
-      if (!iter.hasNext) {
-        Asn1Null()
-      } else {
-
+      try {
+        val b = iter.clone.toArray.map(_.formatted("%02X").takeRight(2)).mkString(" ")
+        if (!iter.hasNext) {
+          return Asn1Null() //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
+        }
         val identifierOctet = iter.getByte
         val identifierType = Asn1IdentifierType(identifierOctet)
         val pORc = PrimitiveOrConstructed(identifierOctet)
-        val classTag = identifierOctet & 0x1F
-        val lengthOctet = iter.getByte
-        val length = if ((lengthOctet & 0x80) > 0) {
-          val lengthlength = lengthOctet & 0x7F
-          if (lengthlength == 0) {
-            //Constructed
+        val classTag = (identifierOctet & 0x1F).toByte
+        //        if (!iter.hasNext) {
+        //          //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail.
+        //          //In the case of LDAP, we have the following
+        //          // UnbindRequest ::= [APPLICATION 2] NULL
+        //          return Asn1Null()
+        //        }
+        val length = {
+          if (!iter.hasNext) {
             0
           } else {
-            val lengthBytes = iter.getBytes(lengthlength)
-            BigInt(1, lengthBytes).toInt
-          }
+            val lengthOctet = iter.getByte
+            if ((lengthOctet & 0x80) > 0) {
+              val lengthlength = lengthOctet & 0x7F
+              if (lengthlength == 0) {
+                //Constructed
+                0
+              } else {
+                val lengthBytes = iter.getBytes(lengthlength)
+                BigInt(1, lengthBytes).toInt
+              }
 
-        } else {
-          lengthOctet & 0x7F
+            } else {
+              lengthOctet & 0x7F
+            }
+          }
         }
 
-        //        println(s"(identifierType, pORc, classTag, lengthOctet, length) = ${(identifierType, pORc, classTag.toHexString, lengthOctet.toHexString, length)}")
+        //        println(s"(identifierType, pORc, classTag, length) = ${(identifierType, pORc, classTag.toHexString, length)}")
         //      println(s"iter.clone().size=${iter.clone().size}")
 
         val res = identifierType match {
           case Asn1IdentifierType.application ⇒
             Asn1Application(classTag, loop(iter.take(length), List()): _*)
           case Asn1IdentifierType.contextSpecific ⇒
-            Asn1ContextSpecific(iter.take(length).toArray)
+            Asn1ContextSpecific(classTag, iter.getBytes(length))
           case Asn1IdentifierType.universal ⇒
             classTag match {
               case 0x00 ⇒ null //END OF CONTENT
@@ -207,6 +233,7 @@ object BEREncoder extends Asn1Encoder {
                 Asn1Boolean(value != 0)
               case 0x02 ⇒
                 length match {
+                  case 0 ⇒ Asn1Zero()
                   case 1 ⇒ Asn1Byte(iter.getByte)
                   case 2 ⇒ Asn1Short(iter.getShort(ByteOrder.BIG_ENDIAN))
                   case 3 ⇒ Asn1Int(BigInt(iter.getBytes(length)).toInt)
@@ -221,7 +248,7 @@ object BEREncoder extends Asn1Encoder {
                 val value = iter.getBytes(length).map(_.toChar).mkString
                 Asn1String(value)
               case 0x05 ⇒ Asn1Null()
-              case 0x06 ⇒ Asn1ObjectIdentifier(iter.take(length).toArray)
+              case 0x06 ⇒ Asn1ObjectIdentifier(iter.getBytes(length))
               case 0x07 ⇒ //Object Descriptor
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x08 ⇒ //External
@@ -273,7 +300,11 @@ object BEREncoder extends Asn1Encoder {
               case _ ⇒ throw new Error(s"Unkown classTag 0x${classTag.toHexString}")
             }
         }
-        return res
+        res
+      } catch {
+        case e: NoSuchElementException ⇒
+          println("0x" + str.map(_.toHexString).mkString(", 0x"))
+          throw e
       }
     }
 

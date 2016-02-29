@@ -45,19 +45,21 @@ object Asn1Boolean {
 }
 
 object Asn1Number {
+  def apply() = Asn1Zero()
   def apply(value: Byte) = Asn1Byte(value)
   def apply(value: Short) = Asn1Short(value)
   def apply(value: Int) = Asn1Int(value)
   def apply(value: Long) = Asn1Long(value)
   def apply(value: Double) = Asn1Double(value)
 }
+case class Asn1Zero() extends Asn1Object
 case class Asn1Byte(value: Byte) extends Asn1Object
 case class Asn1Int(value: Int) extends Asn1Object
 case class Asn1Short(value: Short) extends Asn1Object
 case class Asn1Long(value: Long) extends Asn1Object
 case class Asn1Double(value: Double) extends Asn1Object
 
-case class Asn1ContextSpecific(value: Array[Byte]) extends Asn1Object {
+case class Asn1ContextSpecific(tag: Byte, value: Array[Byte]) extends Asn1Object {
   override def toString = s"Asn1ContextSpecific(${value.map(_.toHexString).mkString(", 0x")})"
   override def equals(obj: Any) = {
     if (!obj.isInstanceOf[Asn1ContextSpecific]) {
