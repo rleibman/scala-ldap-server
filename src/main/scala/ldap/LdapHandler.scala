@@ -34,6 +34,21 @@ class LdapHandler extends Actor with Config {
   import LDAPResultType._
   val log = Logging(context.system, getClass)
   def operate(msg: LdapMessage): Future[Seq[LdapMessage]] = {
+
+    def filterAttributes(node: Node, requestedAttributes: Seq[String]) = {
+      val operational = if (requestedAttributes.contains("+")) { //all operational
+        node.operationalAttributes
+      } else {
+        node.operationalAttributes.filter(a ⇒ requestedAttributes.contains(a._1))
+      }
+      val user = if (requestedAttributes.isEmpty) { //all of 'em
+        node.userAttributes
+      } else {
+        node.userAttributes.filter(a ⇒ requestedAttributes.contains(a._1))
+      }
+      user ++ operational
+    }
+
     msg.protocolOp match {
       case AbandonRequest(messageId) ⇒
         /*
@@ -57,6 +72,8 @@ class LdapHandler extends Actor with Config {
         //        } else {
         //          requestedDN
         //        }
+        //TODO rfc3673: The presence of the attribute description "+" (ASCII 43) in the list of attributes
+        //in a Search Request [RFC2251] SHALL signify a request for the return of all operational attributes.
         scope match {
           case SearchRequestScope.baseObject ⇒
             val nodeFut = dao.getNode(dn)
@@ -65,7 +82,7 @@ class LdapHandler extends Actor with Config {
                 case None ⇒ List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)"))))
                 case Some(node) ⇒
                   List(
-                    LdapMessage(msg.messageId, SearchResultEntry(node.dn, node.attributes.filter(a ⇒ attributes.contains(a._1)))),
+                    LdapMessage(msg.messageId, SearchResultEntry(node.dn, filterAttributes(node, attributes))),
                     LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found"))))
               }
             }
@@ -75,7 +92,7 @@ class LdapHandler extends Actor with Config {
               children ← dao.getChildren(top.get)
             } yield (children)
             childrenFut.map(children ⇒
-              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(child.dn, child.attributes.filter(attributes.contains(_))))) :+
+              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(child.dn, filterAttributes(child, attributes)))) :+
                 LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found"))))
           case SearchRequestScope.wholeSubtree ⇒
             Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
@@ -113,7 +130,14 @@ class LdapHandler extends Actor with Config {
         Write(responseData)
       }
       fut pipeTo sender()
-
+    case msg: LdapMessage ⇒ {
+      val fut = operate(msg)
+      fut onSuccess {
+        case res ⇒
+          println(res)
+      }
+      fut pipeTo sender()
+    }
     case PeerClosed ⇒ context stop self
   }
   //  import akka.pattern.pipe

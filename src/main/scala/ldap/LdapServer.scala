@@ -28,6 +28,8 @@ import dao.MongoDAO
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.concurrent.Future
+import java.time.format.DateTimeFormatterBuilder
+import java.time.format.DateTimeFormatter
 
 //TODO add session management, currently each operation is coming by itself, they need to be
 class LdapListener extends Actor with Config {
@@ -61,20 +63,35 @@ object LdapServer extends App with Config {
 
   def init() = {
     val baseDN = config.getString("scala-ldap-server.base")
+    val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
+
+    def defaultOperationalAttributes(structuralObjectClass: String) = Map(
+      "creatorsName" -> List(s"cn=Manager,${baseDN}"),
+      "createTimestamp" -> List(date),
+      "modifiersName" -> List(s"cn=Manager,${baseDN}"),
+      "modifyTimestamp" -> List(date),
+      "structuralObjectClass" -> List(structuralObjectClass))
+
     val dao = new MongoDAO()
     val fut = for {
       root ← dao.getNode("")
       root2 ← if (root.isEmpty) {
         dao.update(Node(id = "",
           dn = "",
-          attributes = Map(
-            "objectClass" -> List("top"),
-            "entryDN" -> List(""),
-            "configContext" -> List("cn=config"),
-            "subschemaSubentry" -> List("cn=Subschema"),
-            "namingContexts" -> List(baseDN),
-            "supportedLDAPVersion" -> List("3"),
-            "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
+          operationalAttributes = defaultOperationalAttributes("ScalaLDAProotDSE") ++
+            Map("configContext" -> List("cn=config"),
+              "monitorContext" -> List("cn=Monitor"),
+              "namingContexts" -> List(baseDN),
+              "supportedControl" -> List(),
+              "supportedExtension" -> List(),
+              "supportedFeatures" -> List(),
+              "supportedLDAPVersion" -> List("3"),
+              "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
+              "subschemaSubentry" -> List("cn=Subschema"),
+              "altServer" -> List(),
+              "entryDN" -> List("")),
+          userAttributes = Map(
+            "objectClass" -> List("top", "ScalaLDAProotDSE"),
             "vendorName" -> List("scala-ldap-server"),
             "vendorVersion" -> List("0.0.1")),
           parentId = None))
@@ -85,7 +102,8 @@ object LdapServer extends App with Config {
       base2 ← if (base.isEmpty) {
         dao.update(Node(id = "",
           dn = baseDN,
-          attributes = Map(
+          operationalAttributes = defaultOperationalAttributes("organization"),
+          userAttributes = Map(
             "objectClass" -> List("top", "dcObject", "organization"),
             "dc" -> List("example"),
             "o" -> List("example"),
@@ -95,21 +113,24 @@ object LdapServer extends App with Config {
       } else {
         Future.successful(base.get)
       }
+      subschema ← dao.getNode("cn=Subschema")
+      subschema2 ← if (subschema.isEmpty) {
+        dao.update(Node(id = "",
+          dn = "cn=Subschema",
+          operationalAttributes = defaultOperationalAttributes("subentry"),
+          userAttributes = Map(
+            "objectClass" -> List("top", "subentry", "subschema", "extensibleObject"),
+            "cn" -> List("Subschema"),
+            "description" -> List("example")),
+          parentId = Some(root2.id)))
+      } else {
+        Future.successful(base.get)
+      }
       firstLevel ← {
         val firstLevelNodes = List(
-          Node(id = "", dn = "cn=admin", attributes = Map("objectClass" -> List("organizationalRole", "simpleSecurityObject"), "cn" -> List("admin")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=snapshots", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("snapshots")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=aclroles", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("aclroles")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=apps", attributes = Map(), parentId = Some(base2.id)),
-          Node(id = "", dn = "out=configs", attributes = Map(), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=configs", attributes = Map(), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=groups", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=people", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=policies", attributes = Map("objectClass" -> List("organizationalUnit", "top"), "ou" -> List("policies")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=roles", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("roles")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=sudoers", attributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("sudoers")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=systems", attributes = Map(), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=tokens", attributes = Map(), parentId = Some(base2.id)))
+          Node(id = "", dn = "cn=Manager", operationalAttributes = defaultOperationalAttributes("organizationalRole"), userAttributes = Map("objectClass" -> List("organizationalRole"), "cn" -> List("Manager"), "description" -> List("Directory Manager")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=Groups", operationalAttributes = defaultOperationalAttributes("organizationalUnit"), userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(base2.id)),
+          Node(id = "", dn = "ou=People", operationalAttributes = defaultOperationalAttributes("organizationalUnit"), userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(base2.id)))
         Future.sequence(firstLevelNodes.map { node ⇒
           for {
             gotNode ← dao.getNode(node.dn)
@@ -117,7 +138,7 @@ object LdapServer extends App with Config {
           } yield (updatedNode)
         })
       }
-      updatedRoot ← dao.update(root2.copy(children = List(base2.id)))
+      updatedRoot ← dao.update(root2.copy(children = List(subschema2.id, base2.id)))
     } yield (updatedRoot)
 
     val inited = Await.result(fut, 5 minutes)

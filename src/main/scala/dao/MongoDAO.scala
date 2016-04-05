@@ -25,7 +25,14 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
 
   implicit val reader = new BSONDocumentReader[Node] {
     override def read(bson: BSONDocument): Node = {
-      val attributes = bson.getAs[BSONDocument]("attributes").fold(Map[String, Seq[String]]()) {
+      val userAttributes = bson.getAs[BSONDocument]("userAttributes").fold(Map[String, Seq[String]]()) {
+        doc ⇒
+          (doc.elements.map { tuple ⇒
+            val values = tuple._2.asInstanceOf[BSONArray].as[List[String]]
+            (tuple._1 -> values)
+          }).toMap
+      }
+      val operationalAttributes = bson.getAs[BSONDocument]("operationalAttributes").fold(Map[String, Seq[String]]()) {
         doc ⇒
           (doc.elements.map { tuple ⇒
             val values = tuple._2.asInstanceOf[BSONArray].as[List[String]]
@@ -35,19 +42,23 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
 
       Node(bson.getAs[BSONObjectID]("_id").get.stringify,
         bson.getAs[String]("dn").get,
-        attributes,
+        operationalAttributes,
+        userAttributes,
         bson.getAs[BSONObjectID]("parentId").map(_.stringify),
         bson.getAs[Seq[BSONObjectID]]("children").fold(Seq[String]())(_.map(_.stringify)))
     }
   }
 
-  //  id: String, dn: String, attributes: Map[String, Seq[String]], children: Seq[String]
+  //  id: String, dn: String, userAttributes: Map[String, Seq[String]], children: Seq[String]
   implicit val writer = new BSONDocumentWriter[Node] {
     override def write(node: Node): BSONDocument = {
       BSONDocument(
         "_id" -> BSONObjectID(Hex.decodeHex(node.id.toArray)),
         "dn" -> node.dn,
-        "attributes" -> BSONDocument(node.attributes.map { tuple ⇒
+        "userAttributes" -> BSONDocument(node.userAttributes.map { tuple ⇒
+          (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
+        }),
+        "operationalAttributes" -> BSONDocument(node.operationalAttributes.map { tuple ⇒
           (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
         }),
         "parentId" -> node.parentId.map(parentId ⇒ BSONObjectID(Hex.decodeHex(parentId.toArray))),

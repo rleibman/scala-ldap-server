@@ -21,14 +21,14 @@ organization := "com.dienique"
 
 version := "0.0.1"
 
-scalaVersion := "2.11.7"
+scalaVersion := "2.11.8"
 
-lazy val akkaVersion = "2.4.2"
+lazy val akkaVersion = "2.4.3"
 
-libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.14.0" withSources()
+libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.15.0" withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
-libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.11.9" withSources()
+libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.11.11" withSources()
 
 libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.6" % "test" withSources()
 libraryDependencies += "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % "compile,  test" withSources()
