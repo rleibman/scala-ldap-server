@@ -19,18 +19,18 @@ name := "scala-ldap-server"
 
 organization := "com.dienique"
 
-version := "0.0.1"
+version := "0.0.2"
 
-scalaVersion := "2.11.8"
+scalaVersion := "2.12.1"
 
-lazy val akkaVersion = "2.4.3"
+lazy val akkaVersion = "2.4.17"
 
-libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.15.0" withSources()
+libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.17.1" withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
-libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.11.11" withSources()
+libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.1" withSources()
 
-libraryDependencies += "org.scalatest" %% "scalatest" % "2.2.6" % "test" withSources()
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test" withSources()
 libraryDependencies += "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % "compile,  test" withSources()
 
 Revolver.settings

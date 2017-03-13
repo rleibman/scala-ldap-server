@@ -58,9 +58,11 @@ case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAli
 
 case class LdapMessage(messageId: Long, protocolOp: MessageProtocolOp)
 
-case class Node(id: String,
+case class Node(
+  id: String,
   dn: String,
   operationalAttributes: Map[String, Seq[String]], ////rfc4512: Attributes. such as creatorsName, createTimestamp, modifiersName, modifyTimestamp, structuralObjectClass, governingStructureRule, objectClasses, attributeTypes, matchingRules, distinguishedNameMatch, ldapSyntaxes, matchingRuleUse
   userAttributes: Map[String, Seq[String]],
   parentId: Option[String],
-  children: Seq[String] = Seq())
+  children: Seq[String] = Seq()
+)

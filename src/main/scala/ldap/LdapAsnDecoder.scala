@@ -28,22 +28,22 @@ object LdapAsn1Decoder {
         Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn)))
       case SearchResultDone(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
         Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
-      case AbandonRequest(_)                     ⇒ throw new Error("Not yet supported")
-      case BindRequest(_, _, _)                  ⇒ throw new Error("Not yet supported")
+      case AbandonRequest(_) ⇒ throw new Error("Not yet supported")
+      case BindRequest(_, _, _) ⇒ throw new Error("Not yet supported")
       case SearchRequest(_, _, _, _, _, _, _, _) ⇒ throw new Error("Not yet supported")
-      case SearchResultEntryReference()          ⇒ throw new Error("Not yet supported")
-      case UnbindRequest()                       ⇒ throw new Error("Not yet supported")
+      case SearchResultEntryReference() ⇒ throw new Error("Not yet supported")
+      case UnbindRequest() ⇒ throw new Error("Not yet supported")
 
     }
   }
   def decode(asn1: Asn1Object): LdapMessage = {
     val seq = asn1.asInstanceOf[Asn1Sequence]
     val messageId: Long = seq.value(0) match {
-      case Asn1Byte(value)  ⇒ value
+      case Asn1Byte(value) ⇒ value
       case Asn1Short(value) ⇒ value
-      case Asn1Int(value)   ⇒ value
-      case Asn1Long(value)  ⇒ value
-      case _                ⇒ throw new Error(s"Bad value of messageId ${seq.value(0)}")
+      case Asn1Int(value) ⇒ value
+      case Asn1Long(value) ⇒ value
+      case _ ⇒ throw new Error(s"Bad value of messageId ${seq.value(0)}")
     }
 
     val applicationAsn1 = seq.value(1).asInstanceOf[Asn1Application]
@@ -61,14 +61,16 @@ object LdapAsn1Decoder {
         UnbindRequest()
       case 3 ⇒ { //SearchRequest
         val seq = applicationAsn1.value.toSeq
-        SearchRequest(seq(0).asInstanceOf[Asn1String].value,
+        SearchRequest(
+          seq(0).asInstanceOf[Asn1String].value,
           SearchRequestScope(seq(1).asInstanceOf[Asn1Enumerated].value),
           DerefAliases(seq(2).asInstanceOf[Asn1Enumerated].value),
           seq(3).asInstanceOf[Asn1Byte].value,
           seq(4).asInstanceOf[Asn1Byte].value,
           seq(5).asInstanceOf[Asn1Boolean].value,
           Some(StringFilter(seq(6).asInstanceOf[Asn1ContextSpecific].value.map(_.toChar).mkString)),
-          seq(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value))
+          seq(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value)
+        )
       }
       case 4 ⇒ //SearchResultEntry
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")

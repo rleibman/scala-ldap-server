@@ -40,12 +40,14 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
           }).toMap
       }
 
-      Node(bson.getAs[BSONObjectID]("_id").get.stringify,
+      Node(
+        bson.getAs[BSONObjectID]("_id").get.stringify,
         bson.getAs[String]("dn").get,
         operationalAttributes,
         userAttributes,
         bson.getAs[BSONObjectID]("parentId").map(_.stringify),
-        bson.getAs[Seq[BSONObjectID]]("children").fold(Seq[String]())(_.map(_.stringify)))
+        bson.getAs[Seq[BSONObjectID]]("children").fold(Seq[String]())(_.map(_.stringify))
+      )
     }
   }
 
@@ -62,7 +64,8 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
           (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
         }),
         "parentId" -> node.parentId.map(parentId ⇒ BSONObjectID(Hex.decodeHex(parentId.toArray))),
-        "children" -> BSONArray(node.children.map(childId ⇒ BSONObjectID(Hex.decodeHex(childId.toArray)))))
+        "children" -> BSONArray(node.children.map(childId ⇒ BSONObjectID(Hex.decodeHex(childId.toArray))))
+      )
     }
   }
 

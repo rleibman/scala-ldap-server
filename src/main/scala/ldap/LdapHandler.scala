@@ -83,7 +83,8 @@ class LdapHandler extends Actor with Config {
                 case Some(node) ⇒
                   List(
                     LdapMessage(msg.messageId, SearchResultEntry(node.dn, filterAttributes(node, attributes))),
-                    LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found"))))
+                    LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
+                  )
               }
             }
           case SearchRequestScope.singleLevel ⇒
