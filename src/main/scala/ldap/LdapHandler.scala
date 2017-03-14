@@ -26,6 +26,8 @@ import akka.util.ByteString
 import scala.concurrent.Future
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import ldap.rfc4533.RFC4533Plugin
+import java.util.UUID
 
 class LdapHandler extends Actor with Config {
   import context.dispatcher
@@ -33,6 +35,8 @@ class LdapHandler extends Actor with Config {
   import Tcp._
   import LDAPResultType._
   val log = Logging(context.system, getClass)
+  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
+
   def operate(msg: LdapMessage): Future[Seq[LdapMessage]] = {
 
     def filterAttributes(node: Node, requestedAttributes: Seq[String]) = {
@@ -49,7 +53,7 @@ class LdapHandler extends Actor with Config {
       user ++ operational
     }
 
-    msg.protocolOp match {
+    val fut = msg.protocolOp match {
       case AbandonRequest(messageId) ⇒
         /*
          *  The function of the Abandon operation is to allow a client to request that the server abandon an uncompleted operation.
@@ -82,7 +86,7 @@ class LdapHandler extends Actor with Config {
                 case None ⇒ List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)"))))
                 case Some(node) ⇒
                   List(
-                    LdapMessage(msg.messageId, SearchResultEntry(node.dn, filterAttributes(node, attributes))),
+                    LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
                     LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
                   )
               }
@@ -93,13 +97,30 @@ class LdapHandler extends Actor with Config {
               children ← dao.getChildren(top.get)
             } yield (children)
             childrenFut.map(children ⇒
-              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(child.dn, filterAttributes(child, attributes)))) :+
+              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes)))) :+
                 LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found"))))
           case SearchRequestScope.wholeSubtree ⇒
             Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
         }
+      case SearchResultReference(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+      case ModifyRequest(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+      case AddRequest(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+      case DelRequest(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+      case ModifyDNRequest(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+      case CompareRequest(str) =>
+        throw new Error(s"${msg.protocolOp} not handled")
+
       case _ ⇒ throw new Error(s"${msg.protocolOp} not handled")
 
+    }
+
+    fut.map { results: Seq[LdapMessage] =>
+      plugins.foldLeft(results)((z, plugin) => plugin.operate(msg, z))
     }
   }
 
@@ -133,20 +154,12 @@ class LdapHandler extends Actor with Config {
       fut pipeTo sender()
     case msg: LdapMessage ⇒ {
       val fut = operate(msg)
-      fut onSuccess {
-        case res ⇒
+      fut.foreach {
+        res ⇒
           println(res)
       }
       fut pipeTo sender()
     }
     case PeerClosed ⇒ context stop self
   }
-  //  import akka.pattern.pipe
-  //  def receive = {
-  //    val fut = somethingHappensLater()
-  //    val fut2 = fut.map { responseData ⇒
-  //      Write(responseData)
-  //    }
-  //    fut2 pipeTo sender()
-  //  }
 }

@@ -19,7 +19,7 @@ name := "scala-ldap-server"
 
 organization := "com.dienique"
 
-version := "0.0.2"
+version := "0.0.3"
 
 scalaVersion := "2.12.1"
 
@@ -29,7 +29,8 @@ libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.17.1" withS
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
 libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.1" withSources()
-
+libraryDependencies += "ch.qos.logback"      % "logback-classic"  % "1.2.1"
+libraryDependencies += "ch.qos.logback"      % "logback-core"  % "1.2.1"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test" withSources()
 libraryDependencies += "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % "compile,  test" withSources()
 

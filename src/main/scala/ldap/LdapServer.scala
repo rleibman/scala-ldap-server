@@ -17,24 +17,29 @@
 package ldap
 
 import java.net.InetSocketAddress
-import akka.actor.{ Actor, Props }
-import akka.actor.ActorSystem
-import akka.io.{ IO, Tcp }
-import asn1._
-import akka.actor.actorRef2Scala
-import akka.io.Tcp.Bind
-import akka.io.Tcp.Register
-import dao.MongoDAO
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import scala.concurrent.Future
-import java.time.format.DateTimeFormatterBuilder
 import java.time.format.DateTimeFormatter
+
+import scala.concurrent.Await
+import scala.concurrent.Future
+import scala.concurrent.duration.DurationInt
+
+import akka.actor.Actor
+import akka.actor.ActorSystem
+import akka.actor.Props
+import akka.actor.actorRef2Scala
+import akka.event.Logging
+import akka.io.IO
+import akka.io.Tcp
+import akka.io.Tcp.Bind
+import dao.MongoDAO
+import ldap.rfc4533.RFC4533Plugin
 
 //TODO add session management, currently each operation is coming by itself, they need to be
 class LdapListener extends Actor with Config {
-  import Tcp._
   import context.system
+  import akka.io.Tcp._
+
+  val log = Logging(context.system, getClass)
 
   val host = config.getString("scala-ldap-server.host")
   val port = config.getInt("scala-ldap-server.port")
@@ -42,13 +47,13 @@ class LdapListener extends Actor with Config {
 
   def receive = {
     case b @ Bound(localAddress) ⇒
-      println(s"bound to ${localAddress}")
+      log.info(s"bound to ${localAddress}")
     // do some logging or setup ...
 
     case CommandFailed(_: Bind) ⇒ context stop self
 
     case c @ Connected(remote, local) ⇒
-      println(s"Connected ${remote} to ${local}")
+      log.debug(s"Connected ${remote} to ${local}")
       val handler = context.actorOf(Props[LdapHandler])
       val connection = sender()
       connection ! Register(handler)
@@ -60,6 +65,8 @@ object LdapServer extends App with Config {
   implicit val system = ActorSystem("scala-ldap-server")
   import system.dispatcher
   init()
+  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
+  val log = Logging(system, getClass)
 
   def init() = {
     val baseDN = config.getString("scala-ldap-server.base")
@@ -85,7 +92,7 @@ object LdapServer extends App with Config {
             "configContext" -> List("cn=config"),
             "monitorContext" -> List("cn=Monitor"),
             "namingContexts" -> List(baseDN),
-            "supportedControl" -> List(),
+            "supportedControl" -> plugins.flatMap(_.supportedControls.map(_.oid.value)),
             "supportedExtension" -> List(),
             "supportedFeatures" -> List(),
             "supportedLDAPVersion" -> List("3"),
@@ -97,7 +104,7 @@ object LdapServer extends App with Config {
           userAttributes = Map(
             "objectClass" -> List("top", "ScalaLDAProotDSE"),
             "vendorName" -> List("scala-ldap-server"),
-            "vendorVersion" -> List("0.0.1")
+            "vendorVersion" -> List("0.0.2")
           ),
           parentId = None
         ))

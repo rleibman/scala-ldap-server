@@ -144,8 +144,8 @@ object BEREncoder extends Asn1Encoder {
             | 0x00 //Primitive or constructed (primitive)
             | 0x0a //Tag (enumerated)
           ).toByte)
-          putSize(1)
-          bb.putByte(value)
+          putSize(2)
+          bb.putShort(value)(ByteOrder.BIG_ENDIAN)
         case Asn1String(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)

@@ -64,14 +64,16 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
   "sending a searchRequest for some base stuff" should "return a searchEntry and a searchDone" in {
     val handler = system.actorOf(Props[LdapHandler])
     val objectName = ""
-    handler ! LdapMessage(123, SearchRequest(objectName,
+    handler ! LdapMessage(123, SearchRequest(
+      objectName,
       SearchRequestScope.baseObject,
       DerefAliases.neverDerefAliases,
       0,
       0,
       false,
       Some(StringFilter("objectClass")),
-      List("namingContexts",
+      List(
+        "namingContexts",
         "subschemaSubentry",
         "supportedLDAPVersion",
         "supportedSASLMechanisms",
@@ -81,7 +83,9 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
         "vendorName",
         "vendorVersion",
         "+",
-        "objectClass")))
+        "objectClass"
+      )
+    ))
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
 
     response.foreach(msg ⇒ assert(msg.messageId == 123))

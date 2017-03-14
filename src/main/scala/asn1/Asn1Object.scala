@@ -74,7 +74,7 @@ case class Asn1Null() extends Asn1Object
 
 case class Asn1String(value: String) extends Asn1Object
 
-case class Asn1Enumerated(value: Byte) extends Asn1Object
+case class Asn1Enumerated(value: Short) extends Asn1Object
 
 object Asn1Enumerated {
   def apply[T <: Enumeration#Value](value: T): Asn1Enumerated = Asn1Enumerated(value.id.toByte)
