@@ -35,7 +35,6 @@ class LdapHandler extends Actor with Config {
   import Tcp._
   import LDAPResultType._
   val log = Logging(context.system, getClass)
-  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
 
   def operate(msg: LdapMessage): Future[Seq[LdapMessage]] = {
 
@@ -67,6 +66,7 @@ class LdapHandler extends Actor with Config {
          */
         Future.successful { List() }
       case BindRequest(version, name, authChoice) ⇒
+        //TODO We need to actually do a login here, passing success always is not very secure :) 
         Future.successful { List(LdapMessage(msg.messageId, BindResponse(LdapResult(success, name, "Auth successful")))) }
       case UnbindRequest() ⇒
         Future.successful { List() }
@@ -102,17 +102,20 @@ class LdapHandler extends Actor with Config {
           case SearchRequestScope.wholeSubtree ⇒
             Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
         }
-      case SearchResultReference(str) =>
-        throw new Error(s"${msg.protocolOp} not handled")
       case ModifyRequest(str) =>
+        //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
       case AddRequest(str) =>
+        //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
       case DelRequest(str) =>
+        //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
       case ModifyDNRequest(str) =>
+        //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
       case CompareRequest(str) =>
+        //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
 
       case _ ⇒ throw new Error(s"${msg.protocolOp} not handled")

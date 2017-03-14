@@ -65,7 +65,6 @@ object LdapServer extends App with Config {
   implicit val system = ActorSystem("scala-ldap-server")
   import system.dispatcher
   init()
-  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
   val log = Logging(system, getClass)
 
   def init() = {

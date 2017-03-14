@@ -21,9 +21,7 @@ import asn1.Asn1Object
 import ldap.rfc4533.RFC4533Plugin
 import java.util.UUID
 
-object LdapAsn1Decoder {
-
-  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
+object LdapAsn1Decoder extends Config {
 
   def encode(msg: LdapMessage): Asn1Object = {
     val response = msg.protocolOp match {
