@@ -5,10 +5,10 @@ import java.util.UUID
 object SyncInfoMessage {
   val oid = LDAPOID("1.3.6.1.4.1.4203.1.9.1.4")
   sealed abstract trait SyncInfoValue
-  case class Cookie(newCookie: String)
-  case class RefreshDelete(newCookie: Option[String], refreshDone: Boolean = true)
-  case class RefreshPresent(newCookie: Option[String], refreshDone: Boolean = true)
-  case class RefreshIdSet(newCookie: Option[String], refreshDeletes: Boolean = true, syncUUIDs: Seq[UUID])
+  case class Cookie(newCookie: SyncCookie) extends SyncInfoValue
+  case class RefreshDelete(newCookie: Option[SyncCookie], refreshDone: Boolean = true) extends SyncInfoValue
+  case class RefreshPresent(newCookie: Option[SyncCookie], refreshDone: Boolean = true) extends SyncInfoValue
+  case class SyncIdSet(newCookie: Option[SyncCookie], refreshDeletes: Boolean = true, syncUUIDs: Set[UUID] = Set.empty) extends SyncInfoValue
 }
 
 case class SyncInfoMessage(value: SyncInfoMessage.SyncInfoValue) extends IntermediateRespose {
@@ -18,6 +18,11 @@ case class SyncInfoMessage(value: SyncInfoMessage.SyncInfoValue) extends Interme
 object SyncRequestControlMode extends Enumeration {
   type SyncRequestControlMode = Value
   val refreshOnly, refreshAndPersist = Value
+  def fromMode(mode: Short) = mode match {
+    case 1 => SyncRequestControlMode.refreshOnly
+    case 3 => SyncRequestControlMode.refreshAndPersist
+    case _ => throw new Error(s"Invalid  SyncRequestControlMode ${mode}")
+  }
 }
 
 import SyncRequestControlMode._
@@ -36,6 +41,16 @@ case class SyncRequestControl(override val criticality: Boolean = false, modes: 
 object SyncStateType extends Enumeration {
   type SyncStateType = Value
   val present, add, modify, delete = Value
+
+  def fromState(state: Short): SyncStateType = {
+    state match {
+      case 0 => present
+      case 1 => add
+      case 2 => modify
+      case 3 => delete
+      case _ => throw new Error(s"Invalid  SyncStateType ${state}")
+    }
+  }
 }
 
 import SyncStateType._

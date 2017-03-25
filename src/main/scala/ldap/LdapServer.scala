@@ -158,7 +158,9 @@ object LdapServer extends App with Config {
         })
       }
       updatedRoot ← dao.update(root2.copy(children = List(subschema2.id, base2.id)))
+      pluginInits <- Future.traverse(plugins)(_.initialize(config))
     } yield (updatedRoot)
+    
 
     val inited = Await.result(fut, 5 minutes)
   }

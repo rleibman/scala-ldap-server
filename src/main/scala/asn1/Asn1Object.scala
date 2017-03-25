@@ -44,19 +44,28 @@ object Asn1Boolean {
   def unapply(x: Asn1Boolean): Option[Boolean] = Some(x.value)
 }
 
+sealed trait Asn1Number extends Asn1Object
+
 object Asn1Number {
   def apply() = Asn1Zero()
   def apply(value: Byte) = Asn1Byte(value)
   def apply(value: Short) = Asn1Short(value)
   def apply(value: Int) = Asn1Int(value)
   def apply(value: Long) = Asn1Long(value)
-  def apply(value: Double) = Asn1Double(value)
+
+  def unapply(obj: Asn1Number): Option[Long] = obj match {
+    case asn1Number: Asn1Zero => Some(0)
+    case asn1Number: Asn1Byte => Some(asn1Number.value)
+    case asn1Number: Asn1Short => Some(asn1Number.value)
+    case asn1Number: Asn1Int => Some(asn1Number.value)
+    case asn1Number: Asn1Long => Some(asn1Number.value)
+  }
 }
-case class Asn1Zero() extends Asn1Object
-case class Asn1Byte(value: Byte) extends Asn1Object
-case class Asn1Int(value: Int) extends Asn1Object
-case class Asn1Short(value: Short) extends Asn1Object
-case class Asn1Long(value: Long) extends Asn1Object
+case class Asn1Zero() extends Asn1Number
+case class Asn1Byte(value: Byte) extends Asn1Number
+case class Asn1Int(value: Int) extends Asn1Number
+case class Asn1Short(value: Short) extends Asn1Number
+case class Asn1Long(value: Long) extends Asn1Number
 case class Asn1Double(value: Double) extends Asn1Object
 
 case class Asn1ContextSpecific(tag: Byte, value: Array[Byte]) extends Asn1Object {
