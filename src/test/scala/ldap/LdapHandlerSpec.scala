@@ -6,23 +6,26 @@ import org.scalatest.BeforeAndAfterAll
 import akka.actor.Props
 import scala.concurrent.duration._
 import akka.testkit.ImplicitSender
+import akka.actor.Status
+import java.util.concurrent.ExecutionException
 
 class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with ImplicitSender with BeforeAndAfterAll {
+  val handler = system.actorOf(Props[LdapHandler])
   override def afterAll {
+    system.stop(handler)
     TestKit.shutdownActorSystem(system)
   }
   "sending a proper bindrequest" should "return a bindresponse" in {
-    val handler = system.actorOf(Props[LdapHandler])
     handler ! LdapMessage(123, BindRequest(3, "cn=Manager,dc=example,dc=com", LdapSimpleAuthentication("password")))
+
     val response = expectMsg(List(LdapMessage(123, BindResponse(LdapResult(LDAPResultType.success, "cn=Manager,dc=example,dc=com", "Auth successful", List()), None))))
   }
 
   //case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAliases: DerefAliases, sizeLimit: Int, timeLimit: Int, typesOnly: Boolean, filter: Option[Filter] = None, attributes: Seq[String] = Seq()) extends MessageProtocolOp
 
   "sending a searchRequest for the base object" should "return a searchEntry and a searchDone" in {
-    val handler = system.actorOf(Props[LdapHandler])
     val objectName = ""
-    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(StringFilter("objectClass")), List("subschemaSubentry")))
+    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass")), List("subschemaSubentry")))
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
     response.foreach(msg ⇒ assert(msg.messageId == 123))
     assert(response.size == 2)
@@ -39,9 +42,8 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
   }
 
   "sending a searchRequest for the schema object" should "return a searchEntry and a searchDone" in {
-    val handler = system.actorOf(Props[LdapHandler])
     val objectName = "cn=Subschema"
-    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(StringFilter("objectClass=subschema")), List("createTimestamp", "modifyTimestamp")))
+    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass=subschema")), List("createTimestamp", "modifyTimestamp")))
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
 
     response.foreach(msg ⇒ assert(msg.messageId == 123))
@@ -62,7 +64,6 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
   }
 
   "sending a searchRequest for some base stuff" should "return a searchEntry and a searchDone" in {
-    val handler = system.actorOf(Props[LdapHandler])
     val objectName = ""
     handler ! LdapMessage(123, SearchRequest(
       objectName,
@@ -71,7 +72,7 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
       0,
       0,
       false,
-      Some(StringFilter("objectClass")),
+      Some(PresentFilter("objectClass")),
       List(
         "namingContexts",
         "subschemaSubentry",

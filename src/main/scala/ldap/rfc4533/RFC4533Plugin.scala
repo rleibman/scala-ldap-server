@@ -48,8 +48,7 @@ object RFC4533Plugin extends Plugin {
         val logbase = syncrepl.getString("logbase")
         val logfilter = syncrepl.getString("logfilter")
         val syncdata = syncrepl.getString("syncdata") //default|accesslog|changelog
-        
-        
+
       }
       //        syncrepl rid=<replica ID>
       //                provider=ldap[s]://<hostname>[:port]
@@ -155,14 +154,13 @@ object RFC4533Plugin extends Plugin {
           case _ => result
         }
       })
-    }
-    if (msg.controls.exists(_.controlType == LDAPSyncState)) {
+      res
+    } else if (msg.controls.exists(_.controlType == LDAPSyncState)) {
       //TODO: this is a message from another LDAP server, telling us that a change has happened and that we need to do something about it
+      ???
     } else {
       //Do nothing, this plugin doesn't have any skin in the game
       preResults
     }
-
-    ???
   }
 }

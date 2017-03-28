@@ -46,8 +46,6 @@ object BEREncoder extends Asn1Encoder {
     }
   }
 
-  import PrimitiveOrConstructed._
-  import Asn1IdentifierType._
   def encode(obj: Asn1Object): ByteString = {
     val bb = new ByteStringBuilder
 
@@ -81,7 +79,7 @@ object BEREncoder extends Asn1Encoder {
             | 0x00 //Primitive or constructed (primitive)
             | tag //Tag (x)
           ).toByte)
-          putSize(value.length)
+          putSize(value.length.toLong)
           bb.putBytes(value)
         case Asn1Application(tag, value @ _*) ⇒ {
           val newBB = new ByteStringBuilder
@@ -92,7 +90,7 @@ object BEREncoder extends Asn1Encoder {
             | tag //Tag (applicationTag)
           ).toByte)
           if (bytes.size > 0) {
-            putSize(bytes.size)
+            putSize(bytes.size.toLong)
             bb.putBytes(bytes.toArray)
           }
           bb
@@ -124,7 +122,7 @@ object BEREncoder extends Asn1Encoder {
             | 0x02 //Tag (int)
           ).toByte)
           putSize(2)
-          bb.putShort(value)(ByteOrder.BIG_ENDIAN)
+          bb.putShort(value.toShort)(ByteOrder.BIG_ENDIAN)
         case Asn1Zero() ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
@@ -144,14 +142,15 @@ object BEREncoder extends Asn1Encoder {
             | 0x00 //Primitive or constructed (primitive)
             | 0x0a //Tag (enumerated)
           ).toByte)
-          putSize(2)
-          bb.putShort(value)(ByteOrder.BIG_ENDIAN)
+          //Yeah, we could figure out how big this needs to be, but that's extra processing, and who needs that?
+          putSize(4)
+          bb.putInt(value)(ByteOrder.BIG_ENDIAN)
         case Asn1String(value) ⇒
           bb.putByte((0x00 //Class (universal)
             | 0x00 //Primitive or constructed (primitive)
             | 0x04 //Tag (String)
           ).toByte)
-          putSize(value.size)
+          putSize(value.size.toLong)
           bb.putBytes(value.toCharArray().map(_.toByte))
         case Asn1Sequence(value @ _*) ⇒
           val newBB = new ByteStringBuilder
@@ -162,7 +161,7 @@ object BEREncoder extends Asn1Encoder {
             | 0x20 //Primitive or constructed (constructed)
             | 0x10 //Tag (x)
           ).toByte)
-          putSize(bytes.size)
+          putSize(bytes.size.toLong)
           bb.putBytes(bytes.toArray)
         case a ⇒ throw new Error(s"Unknown type of Asn1Object ${obj}")
       }
@@ -182,14 +181,14 @@ object BEREncoder extends Asn1Encoder {
     }
     def once(iter: ByteIterator): Asn1Object = {
       try {
-        val b = iter.clone.toArray.map(_.formatted("%02X").takeRight(2)).mkString(" ")
+        //        val b = iter.clone.toArray.map(_.formatted("%02X").takeRight(2)).mkString(" ")
         if (!iter.hasNext) {
           return Asn1Null() //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
         }
         val identifierOctet = iter.getByte
         val identifierType = Asn1IdentifierType(identifierOctet)
-        val pORc = PrimitiveOrConstructed(identifierOctet)
-        val classTag = (identifierOctet & 0x1F).toByte
+        //        val pORc = PrimitiveOrConstructed(identifierOctet)
+        val classTag = (identifierOctet & 0x1F).toInt
         //        if (!iter.hasNext) {
         //          //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail.
         //          //In the case of LDAP, we have the following
@@ -252,11 +251,20 @@ object BEREncoder extends Asn1Encoder {
               case 0x07 ⇒ //Object Descriptor
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x08 ⇒ //External
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                Asn1External()
+              //                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x09 ⇒ //Real
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x0A ⇒
-                Asn1Enumerated(iter.getByte)
+                val num = length match {
+                  case 1 ⇒ iter.getByte.toInt
+                  case 2 ⇒ iter.getShort(ByteOrder.BIG_ENDIAN).toInt
+                  case 3 ⇒ BigInt(iter.getBytes(length)).toInt
+                  case 4 ⇒ iter.getInt(ByteOrder.BIG_ENDIAN).toInt
+                  case _ ⇒
+                    throw new Error(s"${length} length is not supported for enumerated values")
+                }
+                Asn1Enumerated(num)
               case 0x0B ⇒ //Embedded PDV
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x0C ⇒ //UTF-8 String
@@ -303,7 +311,7 @@ object BEREncoder extends Asn1Encoder {
         res
       } catch {
         case e: NoSuchElementException ⇒
-          println("0x" + str.map(_.toHexString).mkString(", 0x"))
+          println("0x" + str.map(_.toInt.toHexString).mkString(", 0x"))
           throw e
       }
     }

@@ -19,7 +19,7 @@ package ldap
 import java.net.URI
 import java.util.UUID
 
-case class LDAPResultType(code: Short)
+case class LDAPResultType(code: Int)
 
 object LDAPResultType {
   val success = new LDAPResultType(0)
@@ -69,7 +69,6 @@ object LDAPResultType {
   //                       -- 72-79 unused --
   val other = new LDAPResultType(80)
 }
-import LDAPResultType._
 
 trait MessageProtocolOp
 sealed trait LdapAuthentication
@@ -87,9 +86,39 @@ object DerefAliases extends Enumeration {
   val neverDerefAliases, derefInSearching, derefiFindingBaseObj, derefAlways = Value
 }
 import DerefAliases._
-sealed trait Filter
 
-case class StringFilter(str: String) extends Filter
+case class FilterType(value: Int)
+
+object FilterType {
+  val and = 0
+  val or = 1
+  val not = 2
+  val equalityMatch = 3
+  val substrings = 4
+  val greaterOrEqual = 5
+  val lessOrEqual = 6
+  val present = 7
+  val approxMatch = 8
+  val extensibleMatch = 9
+}
+
+sealed abstract class Filter(val filterType: Int)
+case class AndFilter(filters: Filter*) extends Filter(FilterType.and)
+case class OrFilter(filters: Filter*) extends Filter(FilterType.or)
+case class NotFilter(filter: Filter) extends Filter(FilterType.not)
+case class EqualityMatchFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.equalityMatch)
+object SubstringValueType extends Enumeration {
+  type SubstringValueType = Value
+  val initial, any, `final` = Value
+}
+import SubstringValueType._
+case class SubstringValue(substringValueType: SubstringValueType, substring: String)
+case class SubstringsFilter(`type`: String, substrings: Seq[SubstringValue]) extends Filter(FilterType.substrings)
+case class GreaterOrEqualFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.greaterOrEqual)
+case class LessOrEqualFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.lessOrEqual)
+case class PresentFilter(str: String) extends Filter(FilterType.present)
+case class AproxMatchFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.approxMatch)
+case class ExtensibleMatchFilter(matchingRuleId: Option[String], attributeDescription: Option[String], assertionValue: String, dnAttributes: Boolean = false) extends Filter(FilterType.equalityMatch)
 
 trait Request extends MessageProtocolOp
 trait Response extends MessageProtocolOp
@@ -109,14 +138,13 @@ abstract class IntermediateRespose() extends Response {
 
 case class SearchRequest(
   baseObject: String,
-  scope: SearchRequestScope,
-  derefAliases: DerefAliases,
-  sizeLimit: Int,
-  timeLimit: Int,
-  typesOnly: Boolean,
+  scope: SearchRequestScope = SearchRequestScope.singleLevel,
+  derefAliases: DerefAliases = DerefAliases.derefAlways,
+  sizeLimit: Int = Int.MaxValue,
+  timeLimit: Int = Int.MaxValue,
+  typesOnly: Boolean = false,
   filter: Option[Filter] = None,
-  attributes: Seq[String] = Seq()
-) extends Request
+  attributes: Seq[String] = Seq.empty) extends Request
 
 case class SearchResultReference(str: String) extends Response
 case class ModifyRequest(str: String) extends Request
@@ -147,6 +175,5 @@ case class Node(
   operationalAttributes: Map[String, Seq[String]], ////rfc4512: Attributes. such as creatorsName, createTimestamp, modifiersName, modifyTimestamp, structuralObjectClass, governingStructureRule, objectClasses, attributeTypes, matchingRules, distinguishedNameMatch, ldapSyntaxes, matchingRuleUse
   userAttributes: Map[String, Seq[String]],
   parentId: Option[String],
-  children: Seq[String] = Seq()
-)
+  children: Seq[String] = Seq())
 

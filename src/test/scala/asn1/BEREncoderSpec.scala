@@ -35,21 +35,21 @@ class BEREncoderSpec extends FlatSpec {
     assert(asn1 == decoded)
   }
   "encoding and decoding an simple Sequence 1" should "return the same thing" in {
-    val asn1 = Asn1Sequence(Asn1Short(0x1234))
+    val asn1 = Asn1Sequence(Asn1Short(0x1234.toShort))
     val encoded = BEREncoder.encode(asn1)
     val decoded = BEREncoder.decode(encoded)
     println(encoded.map(_.formatted("%02X").takeRight(2)).mkString(" "))
     assert(asn1 == decoded)
   }
   "encoding and decoding a Short" should "return the same thing" in {
-    val asn1 = Asn1Short(123)
+    val asn1 = Asn1Short(123.toShort)
     val encoded = BEREncoder.encode(asn1)
     val decoded = BEREncoder.decode(encoded)
     println(encoded.map(_.formatted("%02X").takeRight(2)).mkString(" "))
     assert(asn1 == decoded)
   }
   "encoding and decoding a Byte" should "return the same thing" in {
-    val asn1 = Asn1Byte(12)
+    val asn1 = Asn1Byte(12.toByte)
     val encoded = BEREncoder.encode(asn1)
     val decoded = BEREncoder.decode(encoded)
     println(encoded.map(_.formatted("%02X").takeRight(2)).mkString(" "))
@@ -70,14 +70,14 @@ class BEREncoderSpec extends FlatSpec {
     assert(asn1 == decoded)
   }
   "encoding a simple Application 1" should "return the same thing" in {
-    val asn1 = Asn1Application(12, Asn1Short(0x4321))
+    val asn1 = Asn1Application(12, Asn1Short(0x4321.toShort))
     val encoded = BEREncoder.encode(asn1)
     val decoded = BEREncoder.decode(encoded)
     println(encoded.map(_.formatted("%02X").takeRight(2)).mkString(" "))
     assert(asn1 == decoded)
   }
   "encoding and decoding a simple Sequence 2" should "return the same thing" in {
-    val asn1 = Asn1Sequence(Asn1Short(1), Asn1Application(12))
+    val asn1 = Asn1Sequence(Asn1Short(1.toShort), Asn1Application(12))
     val encoded = BEREncoder.encode(asn1)
     val decoded = BEREncoder.decode(encoded)
     assert(asn1 == decoded)

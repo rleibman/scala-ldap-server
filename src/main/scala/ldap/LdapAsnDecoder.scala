@@ -18,22 +18,56 @@ package ldap
 
 import asn1._
 import asn1.Asn1Object
-import ldap.rfc4533.RFC4533Plugin
 import java.util.UUID
 
 object LdapAsn1Decoder extends Config {
+  private def encode(filter: Filter): Asn1ContextSpecific = filter match {
+    case filter: PresentFilter => Asn1ContextSpecific(filter.filterType, filter.str.getBytes)
+    case _ => throw new Error(s"Unhadled Filter Type ${filter}")
+  }
+  private def decodeFilter(asn1ContextSpecific: Asn1ContextSpecific): Filter = {
+    asn1ContextSpecific.tag match {
+      case FilterType.present =>
+        PresentFilter(asn1ContextSpecific.value.map(_.toChar).mkString)
+      case _ => throw new Error(s"Unhadled Filter Type ${asn1ContextSpecific.tag}")
+    }
+  }
 
   def encode(msg: LdapMessage): Asn1Object = {
-    val response = msg.protocolOp match {
+    val response: Seq[Asn1Object] = msg.protocolOp match {
+
+      case request: SearchRequest =>
+        //case class SearchRequest(
+        //  baseObject: String,
+        //  scope: SearchRequestScope = SearchRequestScope.singleLevel,
+        //  derefAliases: DerefAliases = DerefAliases.derefAlways,
+        //  sizeLimit: Int = Int.MaxValue,
+        //  timeLimit: Int = Int.MaxValue,
+        //  typesOnly: Boolean = false,
+        //  filter: Option[Filter] = None,
+        //  attributes: Seq[String] = Seq()
+        //) extends Request
+        List(
+          Asn1Number(msg.messageId.toByte),
+          Asn1Application(
+            3,
+            Asn1String(request.baseObject),
+            Asn1Enumerated(request.scope.id),
+            Asn1Enumerated(request.derefAliases.id),
+            Asn1Int(request.sizeLimit),
+            Asn1Int(request.timeLimit),
+            Asn1Boolean(request.typesOnly),
+            request.filter.map(encode).getOrElse(Asn1Null())),
+          Asn1Sequence(request.attributes.map(Asn1String(_)): _*))
       case request: Request =>
         throw new Error("Why are you trying to encode a request?, that doesn't make much sense")
       case BindResponse(LdapResult(opResult, matchedDN, diagnosticMessage, referral), serverSaslCreds) ⇒
         //TODO do something with referral and serverSaslCreds
-        Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(1, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(1, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
       case SearchResultEntry(id: UUID, dn: String, attributes: Map[String, Seq[String]]) ⇒
-        Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn)))
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn)))
       case SearchResultDone(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
-        Asn1Sequence(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
       case SearchResultEntryReference() ⇒ throw new Error("Not yet supported")
       case SearchResultReference(_) ⇒ throw new Error("Not yet supported")
       case ModifyResponse(_) ⇒ throw new Error("Not yet supported")
@@ -43,20 +77,20 @@ object LdapAsn1Decoder extends Config {
       case CompareResponse(_) ⇒ throw new Error("Not yet supported")
       case _ =>
         val response = plugins.foldLeft(Option[Asn1Object](null))((acc, plugin) => acc.fold(plugin.encode(msg))(_ => acc))
-        response.fold(throw new Error(s"${msg.protocolOp} protocol not supported and no plugin found"))(identity)
+        response.fold(throw new Error(s"${msg.protocolOp} protocol not supported and no plugin found"))(Seq(_))
     }
     val controls = msg.controls.map { control =>
       val res = plugins.foldLeft(Option[Asn1Object](null))((acc, plugin) => acc.fold(plugin.encodeControl(control))(_ => acc))
       res.fold(throw new Error(s"${control} not supported and no plugin found"))(identity)
     }
-    Asn1Sequence((response +: controls): _*)
+    Asn1Sequence((response ++ controls): _*)
   }
   def decode(asn1: Asn1Object): LdapMessage = {
     val seq = asn1.asInstanceOf[Asn1Sequence]
     val messageId: Long = seq.value(0) match {
-      case Asn1Byte(value) ⇒ value
-      case Asn1Short(value) ⇒ value
-      case Asn1Int(value) ⇒ value
+      case Asn1Byte(value) ⇒ value.toLong
+      case Asn1Short(value) ⇒ value.toLong
+      case Asn1Int(value) ⇒ value.toLong
       case Asn1Long(value) ⇒ value
       case _ ⇒ throw new Error(s"Bad value of messageId ${seq.value(0)}")
     }
@@ -74,16 +108,20 @@ object LdapAsn1Decoder extends Config {
         UnbindRequest()
       case 3 ⇒ {
         val seq = applicationAsn1.value.toSeq
+        val attributes = if (seq.length > 7) {
+          seq(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value)
+        } else {
+          Seq.empty
+        }
         SearchRequest(
           seq(0).asInstanceOf[Asn1String].value,
-          SearchRequestScope(seq(1).asInstanceOf[Asn1Enumerated].value),
-          DerefAliases(seq(2).asInstanceOf[Asn1Enumerated].value),
-          seq(3).asInstanceOf[Asn1Byte].value,
-          seq(4).asInstanceOf[Asn1Byte].value,
+          SearchRequestScope(seq(1).asInstanceOf[Asn1Enumerated].value.toInt),
+          DerefAliases(seq(2).asInstanceOf[Asn1Enumerated].value.toInt),
+          (seq(3).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
+          (seq(4).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
           seq(5).asInstanceOf[Asn1Boolean].value,
-          Some(StringFilter(seq(6).asInstanceOf[Asn1ContextSpecific].value.map(_.toChar).mkString)),
-          seq(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value)
-        )
+          Some(decodeFilter(seq(6).asInstanceOf[Asn1ContextSpecific])),
+          attributes)
       }
       case 6 ⇒
         ModifyRequest("")

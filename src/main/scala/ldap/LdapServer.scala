@@ -32,7 +32,6 @@ import akka.io.IO
 import akka.io.Tcp
 import akka.io.Tcp.Bind
 import dao.MongoDAO
-import ldap.rfc4533.RFC4533Plugin
 
 //TODO add session management, currently each operation is coming by itself, they need to be
 class LdapListener extends Actor with Config {
@@ -160,9 +159,8 @@ object LdapServer extends App with Config {
       updatedRoot ← dao.update(root2.copy(children = List(subschema2.id, base2.id)))
       pluginInits <- Future.traverse(plugins)(_.initialize(config))
     } yield (updatedRoot)
-    
 
-    val inited = Await.result(fut, 5 minutes)
+    Await.result(fut, 5 minutes)
   }
 
   // Create the 'ldap' actor

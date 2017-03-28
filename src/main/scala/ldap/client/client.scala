@@ -91,16 +91,16 @@ case class LdapQueryResult(
   className: String,
   relative: Boolean,
   obj: AnyRef,
-  attrs: Map[String, LdapAttribute])
+  attrs: Map[String, LdapAttribute]
+)
 
 case class LdapAttribute(
     id: String,
     ordered: Boolean,
-    values: Seq[String]) {
+    values: Seq[String]
+) {
   def value: String = values.headOption.getOrElse("")
 }
-
-case class UserPass(user: String, pass: String)
 
 trait AuthenticatorAndAuthorizer[USER, ROLE] {
   def authenticate(userPassOption: Option[UserPass]): Future[Option[USER]]
@@ -132,7 +132,8 @@ class LdapAuthenticator[USER, ROLE](ldapConfig: LdapConfig[USER, ROLE])(implicit
         val results = context.search(
           ldapConfig.roleSearchBase(),
           ldapConfig.roleSearchFilter(user, application),
-          ldapConfig.configureRoleSearchControls(new SearchControls()))
+          ldapConfig.configureRoleSearchControls(new SearchControls())
+        )
         results.asScala.toList.nonEmpty
       case Left(ex) ⇒
         log.warning("Could not authenticate with search user '{}': {}", creds._1, ex)
@@ -163,7 +164,8 @@ class LdapAuthenticator[USER, ROLE](ldapConfig: LdapConfig[USER, ROLE])(implicit
         case entries: Any ⇒
           log.warning(
             "Expected exactly one search result for search filter '{}' and search base '{}', but got {}",
-            ldapConfig.searchFilter(user), ldapConfig.searchBase(user), entries.size)
+            ldapConfig.searchFilter(user), ldapConfig.searchBase(user), entries.size
+          )
           None
       }
     }
@@ -205,7 +207,8 @@ class LdapAuthenticator[USER, ROLE](ldapConfig: LdapConfig[USER, ROLE])(implicit
     val results: NamingEnumeration[SearchResult] = ldapContext.search(
       ldapConfig.searchBase(user),
       ldapConfig.searchFilter(user),
-      searchControls(user))
+      searchControls(user)
+    )
     results.asScala.toList.map(searchResult2LdapQueryResult)
   }
 
@@ -223,14 +226,16 @@ class LdapAuthenticator[USER, ROLE](ldapConfig: LdapConfig[USER, ROLE])(implicit
       className = getClassName,
       relative = isRelative,
       obj = getObject,
-      attrs = getAttributes.getAll.asScala.toSeq.map(a ⇒ a.getID -> attribute2LdapAttribute(a))(collection.breakOut))
+      attrs = getAttributes.getAll.asScala.toSeq.map(a ⇒ a.getID -> attribute2LdapAttribute(a))(collection.breakOut)
+    )
   }
 
   def attribute2LdapAttribute(attr: Attribute): LdapAttribute = {
     LdapAttribute(
       id = attr.getID,
       ordered = attr.isOrdered,
-      values = attr.getAll.asScala.toSeq.map(v ⇒ if (v != null) v.toString else ""))
+      values = attr.getAll.asScala.toSeq.map(v ⇒ if (v != null) v.toString else "")
+    )
   }
 }
 

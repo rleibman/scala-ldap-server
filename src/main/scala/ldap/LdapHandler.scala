@@ -16,25 +16,26 @@
 */
 package ldap
 
-import akka.actor.Actor
-import asn1._
-import akka.event.Logging
-import akka.actor.actorRef2Scala
-import akka.io.Tcp
-import dao.MongoDAO
-import akka.util.ByteString
-import scala.concurrent.Future
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import ldap.rfc4533.RFC4533Plugin
 import java.util.UUID
+
+import scala.concurrent.Future
+
+import akka.actor.Actor
+import akka.event.Logging
+import akka.util.ByteString
+import asn1.BEREncoder
+import dao.MongoDAO
 
 class LdapHandler extends Actor with Config {
   import context.dispatcher
   val dao = new MongoDAO()(context.system)
-  import Tcp._
   import LDAPResultType._
+  import akka.io.Tcp._
   val log = Logging(context.system, getClass)
+
+  override def postStop(): Unit = {
+    dao.driver.close()
+  }
 
   def operate(msg: LdapMessage): Future[Seq[LdapMessage]] = {
 
@@ -81,21 +82,16 @@ class LdapHandler extends Actor with Config {
         scope match {
           case SearchRequestScope.baseObject ⇒
             val nodeFut = dao.getNode(dn)
-            nodeFut.map { nodeOpt ⇒
-              nodeOpt match {
-                case None ⇒ List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)"))))
-                case Some(node) ⇒
-                  List(
-                    LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
-                    LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
-                  )
-              }
-            }
+            nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)")))))(node => List(
+              LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
+              LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
+            )))
           case SearchRequestScope.singleLevel ⇒
             val childrenFut = for {
               top ← dao.getNode(dn)
               children ← dao.getChildren(top.get)
             } yield (children)
+            childrenFut.foreach(_ => println("Got here!"))
             childrenFut.map(children ⇒
               children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes)))) :+
                 LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found"))))
@@ -155,6 +151,7 @@ class LdapHandler extends Actor with Config {
         Write(responseData)
       }
       fut pipeTo sender()
+      ()
     case msg: LdapMessage ⇒ {
       val fut = operate(msg)
       fut.foreach {
@@ -162,6 +159,7 @@ class LdapHandler extends Actor with Config {
           println(res)
       }
       fut pipeTo sender()
+      ()
     }
     case PeerClosed ⇒ context stop self
   }

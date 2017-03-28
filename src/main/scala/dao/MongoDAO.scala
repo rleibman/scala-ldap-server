@@ -8,11 +8,11 @@ import ldap.Node
 import java.util.UUID
 import org.apache.commons.codec.binary.Hex
 import akka.event.Logging
+import reactivemongo.bson._
 
 class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
-  import reactivemongo.api._
   import actorSystem.dispatcher
-  import reactivemongo.bson._
+  import reactivemongo.api._
   val log = Logging(actorSystem, getClass)
 
   // gets an instance of the driver
@@ -20,33 +20,33 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   val driver = new MongoDriver
   val connection = driver.connection(config.getStringList("scala-ldap-server.mongo.hosts").asScala)
   // Gets a reference to the database "plugin"
-  val db = connection(config.getString("scala-ldap-server.mongo.dbName"))
-  val nodeCollection = db("nodes")
+  val dbFut = connection.database(config.getString("scala-ldap-server.mongo.dbName"))
+  val nodeCollectionFut = dbFut.map(_("nodes"))
 
   implicit val reader = new BSONDocumentReader[Node] {
     override def read(bson: BSONDocument): Node = {
       val userAttributes = bson.getAs[BSONDocument]("userAttributes").fold(Map[String, Seq[String]]()) {
         doc ⇒
-          (doc.elements.map { tuple ⇒
-            val values = tuple._2.asInstanceOf[BSONArray].as[List[String]]
-            (tuple._1 -> values)
+          (doc.elements.map { bsonElement ⇒
+            val values = bsonElement.value.asInstanceOf[BSONArray].as[List[String]]
+            (bsonElement.name -> values)
           }).toMap
       }
       val operationalAttributes = bson.getAs[BSONDocument]("operationalAttributes").fold(Map[String, Seq[String]]()) {
         doc ⇒
-          (doc.elements.map { tuple ⇒
-            val values = tuple._2.asInstanceOf[BSONArray].as[List[String]]
-            (tuple._1 -> values)
+          (doc.elements.map { bsonElement ⇒
+            val values = bsonElement.value.asInstanceOf[BSONArray].as[List[String]]
+            (bsonElement.name -> values)
           }).toMap
       }
 
       Node(
-        bson.getAs[BSONObjectID]("_id").get.stringify,
+        bson.getAs[String]("_id").get,
         bson.getAs[String]("dn").get,
         operationalAttributes,
         userAttributes,
-        bson.getAs[BSONObjectID]("parentId").map(_.stringify),
-        bson.getAs[Seq[BSONObjectID]]("children").fold(Seq[String]())(_.map(_.stringify))
+        bson.getAs[String]("parentId"),
+        bson.getAs[Seq[String]]("children").getOrElse(Seq[String]())
       )
     }
   }
@@ -55,7 +55,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   implicit val writer = new BSONDocumentWriter[Node] {
     override def write(node: Node): BSONDocument = {
       BSONDocument(
-        "_id" -> BSONObjectID(Hex.decodeHex(node.id.toArray)),
+        "_id" -> node.id,
         "dn" -> node.dn,
         "userAttributes" -> BSONDocument(node.userAttributes.map { tuple ⇒
           (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
@@ -63,35 +63,39 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
         "operationalAttributes" -> BSONDocument(node.operationalAttributes.map { tuple ⇒
           (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
         }),
-        "parentId" -> node.parentId.map(parentId ⇒ BSONObjectID(Hex.decodeHex(parentId.toArray))),
-        "children" -> BSONArray(node.children.map(childId ⇒ BSONObjectID(Hex.decodeHex(childId.toArray))))
+        "parentId" -> node.parentId,
+        "children" -> BSONArray(node.children)
       )
+
     }
   }
 
-  def getNode(dn: String): Future[Option[Node]] = nodeCollection.find(BSONDocument("dn" -> dn)).one[Node]
+  def getNode(dn: String): Future[Option[Node]] = {
+    for {
+      collection <- nodeCollectionFut
+      results <- collection.find(BSONDocument("dn" -> dn)).one[Node]
+    } yield (results)
+
+  }
 
   def getChildren(node: Node): Future[List[Node]] = {
     val parentId = BSONObjectID(Hex.decodeHex(node.id.toArray))
-    log.debug(s"Finding all children of node with parentId = ${parentId.stringify}")
-    val found = nodeCollection.find(BSONDocument("parentId" -> parentId))
-    val cursor = found.cursor[Node]()
-    val res = cursor.collect[List]()
-    res.onFailure {
-      case t: Throwable ⇒ t.printStackTrace()
-    }
-    res
+    for {
+      collection <- nodeCollectionFut
+      cursor <- collection.find(BSONDocument("parentId" -> parentId)).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
+    } yield (cursor)
   }
 
   def update(node: Node): Future[Node] = {
     val nodeWithId = if (node.id.isEmpty) {
-      node.copy(id = BSONObjectID.generate.stringify)
+      node.copy(id = UUID.randomUUID().toString())
     } else {
       node
     }
-    println(nodeWithId)
-    val fut = nodeCollection.update(BSONDocument("dn" -> node.dn), nodeWithId, upsert = true)
-    fut.map(result ⇒ nodeWithId)
+    for {
+      collection <- nodeCollectionFut
+      result <- collection.update(BSONDocument("dn" -> node.dn), nodeWithId, upsert = true)
+    } yield (nodeWithId)
   }
 
 }

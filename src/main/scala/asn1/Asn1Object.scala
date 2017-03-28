@@ -44,7 +44,9 @@ object Asn1Boolean {
   def unapply(x: Asn1Boolean): Option[Boolean] = Some(x.value)
 }
 
-sealed trait Asn1Number extends Asn1Object
+sealed trait Asn1Number[T <: Number] extends Asn1Object {
+  def value: T
+}
 
 object Asn1Number {
   def apply() = Asn1Zero()
@@ -53,23 +55,26 @@ object Asn1Number {
   def apply(value: Int) = Asn1Int(value)
   def apply(value: Long) = Asn1Long(value)
 
-  def unapply(obj: Asn1Number): Option[Long] = obj match {
+  def unapply(obj: Asn1Number[_]): Option[Long] = obj match {
     case asn1Number: Asn1Zero => Some(0)
-    case asn1Number: Asn1Byte => Some(asn1Number.value)
-    case asn1Number: Asn1Short => Some(asn1Number.value)
-    case asn1Number: Asn1Int => Some(asn1Number.value)
-    case asn1Number: Asn1Long => Some(asn1Number.value)
+    case asn1Number: Asn1Byte => Some(asn1Number.value.toLong)
+    case asn1Number: Asn1Short => Some(asn1Number.value.toLong)
+    case asn1Number: Asn1Int => Some(asn1Number.value.toLong)
+    case asn1Number: Asn1Long => Some(asn1Number.value.toLong)
   }
 }
-case class Asn1Zero() extends Asn1Number
-case class Asn1Byte(value: Byte) extends Asn1Number
-case class Asn1Int(value: Int) extends Asn1Number
-case class Asn1Short(value: Short) extends Asn1Number
-case class Asn1Long(value: Long) extends Asn1Number
-case class Asn1Double(value: Double) extends Asn1Object
+case class Asn1Zero() extends Asn1Number[java.lang.Byte] {
+  override val value = 0.toByte
+}
+case class Asn1Byte(override val value: java.lang.Byte) extends Asn1Number[java.lang.Byte]
+case class Asn1Int(override val value: java.lang.Integer) extends Asn1Number[java.lang.Integer]
+case class Asn1Short(override val value: java.lang.Short) extends Asn1Number[java.lang.Short]
+case class Asn1Long(override val value: java.lang.Long) extends Asn1Number[java.lang.Long]
 
-case class Asn1ContextSpecific(tag: Byte, value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ContextSpecific(${value.map(_.toHexString).mkString(", 0x")})"
+case class Asn1Double(val value: Double) extends Asn1Object
+
+case class Asn1ContextSpecific(tag: Int, value: Array[Byte]) extends Asn1Object {
+  override def toString = s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
   override def equals(obj: Any) = {
     if (!obj.isInstanceOf[Asn1ContextSpecific]) {
       false
@@ -83,14 +88,21 @@ case class Asn1Null() extends Asn1Object
 
 case class Asn1String(value: String) extends Asn1Object
 
-case class Asn1Enumerated(value: Short) extends Asn1Object
+case class Asn1Enumerated(value: Int) extends Asn1Object
 
 object Asn1Enumerated {
-  def apply[T <: Enumeration#Value](value: T): Asn1Enumerated = Asn1Enumerated(value.id.toByte)
+  def apply[T <: Enumeration#Value](value: T): Asn1Enumerated = Asn1Enumerated(value.id.toInt)
 }
 
 case class Asn1ObjectIdentifier(value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ContextSpecific(${value.map(_.toHexString).mkString(", 0x")})"
+  override def toString = s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
 }
+
+case class Asn1External(
+  directReference: Option[String] = None,
+  indirectReference: Option[String] = None,
+  dataValueDescriptor: Option[String] = None,
+  encoding: Option[String] = None
+) extends Asn1Object
 
 case class Asn1Application(tag: Int, value: Asn1Object*) extends Asn1Object

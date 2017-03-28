@@ -19,20 +19,43 @@ name := "scala-ldap-server"
 
 organization := "com.dienique"
 
-version := "0.0.3"
+version := "0.0.4"
 
 scalaVersion := "2.12.1"
 
 lazy val akkaVersion = "2.4.17"
 
-libraryDependencies += "com.github.pathikrit" %% "better-files" % "2.17.1" withSources()
+libraryDependencies += "com.github.pathikrit" %% "better-files" % "3.0.0" withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
 libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.1" withSources()
-libraryDependencies += "ch.qos.logback"      % "logback-classic"  % "1.2.1"
-libraryDependencies += "ch.qos.logback"      % "logback-core"  % "1.2.1"
+libraryDependencies += "ch.qos.logback"      % "logback-classic"  % "1.2.2"
+libraryDependencies += "ch.qos.logback"      % "logback-core"  % "1.2.2"
 libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.1" % "test" withSources()
 libraryDependencies += "com.typesafe.akka"  %% "akka-testkit" % akkaVersion % "compile,  test" withSources()
+
+scalacOptions ++= Seq(
+  "-unchecked",
+  "-deprecation",
+  "-encoding", "UTF-8",
+  "-feature",                
+  "-Xlint",
+  "-Ywarn-dead-code",
+  "-Yno-adapted-args",       
+  "-Ywarn-numeric-widen",   
+  "-Ywarn-value-discard",
+  "-Xfuture",
+  "-Ywarn-unused-import",
+  "-Ywarn-unused",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  //"-Xfatal-warnings",
+  "-language:_",
+  "-target:jvm-1.8",
+  "-language:existentials",
+  "-language:higherKinds",
+  "-language:implicitConversions"
+)
 
 Revolver.settings
 //Revolver.enableDebugging(port = 9999, suspend = true)

@@ -18,7 +18,7 @@ case class SyncInfoMessage(value: SyncInfoMessage.SyncInfoValue) extends Interme
 object SyncRequestControlMode extends Enumeration {
   type SyncRequestControlMode = Value
   val refreshOnly, refreshAndPersist = Value
-  def fromMode(mode: Short) = mode match {
+  def fromMode(mode: Int) = mode match {
     case 1 => SyncRequestControlMode.refreshOnly
     case 3 => SyncRequestControlMode.refreshAndPersist
     case _ => throw new Error(s"Invalid  SyncRequestControlMode ${mode}")
@@ -42,7 +42,7 @@ object SyncStateType extends Enumeration {
   type SyncStateType = Value
   val present, add, modify, delete = Value
 
-  def fromState(state: Short): SyncStateType = {
+  def fromState(state: Int): SyncStateType = {
     state match {
       case 0 => present
       case 1 => add
