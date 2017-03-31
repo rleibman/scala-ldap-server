@@ -22,7 +22,8 @@ class RFC4333Spec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with 
     handler ! LdapMessage(
       123,
       SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass")), List("subschemaSubentry")),
-      List(SyncRequestControl()))
+      List(SyncRequestControl())
+    )
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
     assert(response.size == 2)
     val searchResultEntry = response(0).protocolOp.asInstanceOf[SearchResultEntry]

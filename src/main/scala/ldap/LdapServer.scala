@@ -75,7 +75,8 @@ object LdapServer extends App with Config {
       "createTimestamp" -> List(date),
       "modifiersName" -> List(s"cn=Manager,${baseDN}"),
       "modifyTimestamp" -> List(date),
-      "structuralObjectClass" -> List(structuralObjectClass)
+      "structuralObjectClass" -> List(structuralObjectClass),
+      "subschemaSubentry" -> List("cn=Subschema")
     )
 
     val dao = new MongoDAO()
@@ -165,4 +166,8 @@ object LdapServer extends App with Config {
 
   // Create the 'ldap' actor
   val ldap = system.actorOf(Props[LdapListener], "ldap")
+
+  def shutdown() = {
+    system.terminate()
+  }
 }

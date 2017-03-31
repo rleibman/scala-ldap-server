@@ -77,24 +77,28 @@ class LdapHandler extends Actor with Config {
         //        } else {
         //          requestedDN
         //        }
+        val bareDN = dn.replaceAll(s",${config.getString("scala-ldap-server.base")}", "").trim()
         //TODO rfc3673: The presence of the attribute description "+" (ASCII 43) in the list of attributes
         //in a Search Request [RFC2251] SHALL signify a request for the return of all operational attributes.
         scope match {
           case SearchRequestScope.baseObject ⇒
-            val nodeFut = dao.getNode(dn)
-            nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)")))))(node => List(
+            val nodeFut = dao.getNode(bareDN)
+            nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, bareDN, "Search successful (no results found)")))))(node => List(
               LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
               LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
             )))
           case SearchRequestScope.singleLevel ⇒
             val childrenFut = for {
-              top ← dao.getNode(dn)
-              children ← dao.getChildren(top.get)
+              top ← dao.getNode(bareDN)
+              children ← top.fold {
+                Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
+              }(top => dao.getChildren(top))
             } yield (children)
-            childrenFut.foreach(_ => println("Got here!"))
-            childrenFut.map(children ⇒
-              children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes)))) :+
-                LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found"))))
+            childrenFut.failed.foreach(_.printStackTrace())
+            childrenFut.map(children ⇒ {
+              val res = children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes))))
+              res :+ LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found")))
+            })
           case SearchRequestScope.wholeSubtree ⇒
             Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
         }
@@ -127,30 +131,32 @@ class LdapHandler extends Actor with Config {
 
   def receive = {
     case Received(data) ⇒
-      //      println(data.map(b ⇒ s"0x${b.toHexString}"))
-      val requestAsn1 = BEREncoder.decode(data)
+      val list = BEREncoder.decode(data)
       if (config.getBoolean("scala-ldap-server.logASN1")) {
-        log.debug(s"request = ${requestAsn1}")
+        log.debug(s"request = ${list}")
       }
-      val requestMsg = LdapAsn1Decoder.decode(requestAsn1)
-      if (config.getBoolean("scala-ldap-server.logLDAPRequest")) {
-        log.debug(s"requestMsg = ${requestMsg}")
-      }
-      val responseMsgFut = operate(requestMsg)
-      //      val theSender = sender() //Need to capture the sender, cause sender() is a var
-      val fut = responseMsgFut.map { responseMsgs ⇒
-        if (config.getBoolean("scala-ldap-server.logLDAPResponse")) {
-          log.debug(s"responseMsgs = ${responseMsgs}")
+
+      list.foreach { requestAsn1 =>
+        val requestMsg = LdapAsn1Decoder.decode(requestAsn1)
+        if (config.getBoolean("scala-ldap-server.logLDAPRequest")) {
+          log.debug(s"requestMsg = ${requestMsg}")
         }
-        val responseAsn1 = responseMsgs.map(LdapAsn1Decoder.encode)
-        if (config.getBoolean("scala-ldap-server.logASN1")) {
-          log.debug(s"response = ${responseAsn1}")
+        val responseMsgFut = operate(requestMsg)
+        //      val theSender = sender() //Need to capture the sender, cause sender() is a var
+        val fut = responseMsgFut.map { responseMsgs ⇒
+          if (config.getBoolean("scala-ldap-server.logLDAPResponse")) {
+            log.debug(s"responseMsgs = ${responseMsgs}")
+          }
+          val responseAsn1 = responseMsgs.map(LdapAsn1Decoder.encode)
+          if (config.getBoolean("scala-ldap-server.logASN1")) {
+            log.debug(s"response = ${responseAsn1}")
+          }
+          val responseDatas = responseAsn1.map(BEREncoder.encode)
+          val responseData = responseDatas.foldLeft(ByteString())((a, b) ⇒ a ++ b)
+          Write(responseData)
         }
-        val responseDatas = responseAsn1.map(BEREncoder.encode)
-        val responseData = responseDatas.foldLeft(ByteString())((a, b) ⇒ a ++ b)
-        Write(responseData)
+        fut pipeTo sender()
       }
-      fut pipeTo sender()
       ()
     case msg: LdapMessage ⇒ {
       val fut = operate(msg)

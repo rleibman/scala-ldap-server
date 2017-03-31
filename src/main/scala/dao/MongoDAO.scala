@@ -1,14 +1,20 @@
 package dao
 
-import scala.collection.JavaConverters._
-import akka.actor.ActorSystem
+import java.util.UUID
+
+import scala.collection.JavaConverters.asScalaBufferConverter
 import scala.concurrent.Future
+
+import akka.actor.ActorSystem
+import akka.event.Logging
 import ldap.Config
 import ldap.Node
-import java.util.UUID
-import org.apache.commons.codec.binary.Hex
-import akka.event.Logging
-import reactivemongo.bson._
+import reactivemongo.bson.BSONArray
+import reactivemongo.bson.BSONDocument
+import reactivemongo.bson.BSONDocumentReader
+import reactivemongo.bson.BSONDocumentWriter
+import reactivemongo.bson.BSONString
+import reactivemongo.bson.BSONRegex
 
 class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   import actorSystem.dispatcher
@@ -21,7 +27,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   val connection = driver.connection(config.getStringList("scala-ldap-server.mongo.hosts").asScala)
   // Gets a reference to the database "plugin"
   val dbFut = connection.database(config.getString("scala-ldap-server.mongo.dbName"))
-  val nodeCollectionFut = dbFut.map(_("nodes"))
+  val nodeCollectionFut = dbFut.map(db => db("nodes"))
 
   implicit val reader = new BSONDocumentReader[Node] {
     override def read(bson: BSONDocument): Node = {
@@ -71,24 +77,26 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   }
 
   def getNode(dn: String): Future[Option[Node]] = {
+    val query = BSONDocument("dn" -> BSONRegex(dn, "i"))
     for {
       collection <- nodeCollectionFut
-      results <- collection.find(BSONDocument("dn" -> dn)).one[Node]
+      results <- collection.find(query).one[Node]
     } yield (results)
 
   }
 
   def getChildren(node: Node): Future[List[Node]] = {
-    val parentId = BSONObjectID(Hex.decodeHex(node.id.toArray))
+    val query = BSONDocument("parentId" -> node.id)
     for {
       collection <- nodeCollectionFut
-      cursor <- collection.find(BSONDocument("parentId" -> parentId)).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
-    } yield (cursor)
+      results <- collection.find(query).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
+    } yield (results)
   }
 
   def update(node: Node): Future[Node] = {
     val nodeWithId = if (node.id.isEmpty) {
-      node.copy(id = UUID.randomUUID().toString())
+      val id = UUID.randomUUID().toString()
+      node.copy(id = id, operationalAttributes = node.operationalAttributes ++ Map("entryUUID" -> Seq(id)))
     } else {
       node
     }

@@ -28,6 +28,7 @@ lazy val akkaVersion = "2.4.17"
 libraryDependencies += "com.github.pathikrit" %% "better-files" % "3.0.0" withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
+libraryDependencies += "com.typesafe.akka"  %% "akka-stream" % akkaVersion withSources()
 libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.1" withSources()
 libraryDependencies += "ch.qos.logback"      % "logback-classic"  % "1.2.2"
 libraryDependencies += "ch.qos.logback"      % "logback-core"  % "1.2.2"

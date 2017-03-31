@@ -20,8 +20,6 @@ import java.nio.ByteOrder
 
 import scala.annotation.tailrec
 
-import akka.util.ByteIterator
-
 import akka.util.ByteString
 import akka.util.ByteStringBuilder
 
@@ -170,21 +168,23 @@ object BEREncoder extends Asn1Encoder {
 
     bb.result
   }
-  def decode(str: ByteString): Asn1Object = {
-    @tailrec def loop(iter: ByteIterator, acc: List[Asn1Object]): List[Asn1Object] = {
-      if (!iter.hasNext) {
+
+  def decode(str: ByteString): List[Asn1Object] = {
+    @tailrec def loop(str: ByteString, acc: List[Asn1Object]): List[Asn1Object] = {
+      if (str.isEmpty) {
         acc
       } else {
-        val obj = once(iter)
-        loop(iter, acc :+ obj)
+        val obj = once(str)
+        loop(obj._2, acc :+ obj._1)
       }
     }
-    def once(iter: ByteIterator): Asn1Object = {
+    def once(str: ByteString): (Asn1Object, ByteString) = {
       try {
         //        val b = iter.clone.toArray.map(_.formatted("%02X").takeRight(2)).mkString(" ")
-        if (!iter.hasNext) {
-          return Asn1Null() //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
+        if (str.isEmpty) {
+          return (Asn1Null(), ByteString.empty) //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
         }
+        val iter = str.iterator
         val identifierOctet = iter.getByte
         val identifierType = Asn1IdentifierType(identifierOctet)
         //        val pORc = PrimitiveOrConstructed(identifierOctet)
@@ -221,7 +221,7 @@ object BEREncoder extends Asn1Encoder {
 
         val res = identifierType match {
           case Asn1IdentifierType.application ⇒
-            Asn1Application(classTag, loop(iter.take(length), List()): _*)
+            Asn1Application(classTag, loop(iter.getByteString(length), List()): _*)
           case Asn1IdentifierType.contextSpecific ⇒
             Asn1ContextSpecific(classTag, iter.getBytes(length))
           case Asn1IdentifierType.universal ⇒
@@ -249,12 +249,42 @@ object BEREncoder extends Asn1Encoder {
               case 0x05 ⇒ Asn1Null()
               case 0x06 ⇒ Asn1ObjectIdentifier(iter.getBytes(length))
               case 0x07 ⇒ //Object Descriptor
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                val value = iter.getBytes(length).map(_.toChar).mkString
+                Asn1ObjectDescriptor(value)
               case 0x08 ⇒ //External
                 Asn1External()
               //                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x09 ⇒ //Real
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                Asn1Double(0.0) //TODO fix this
+              //                val preamble = iter.getByte
+              //                val result = if ((preamble & 0x40) == 1) {
+              //                  Double.PositiveInfinity
+              //                } else if ((preamble & 0x41) == 1) {
+              //                  Double.NegativeInfinity
+              //                } else {
+              //                  val szOfExp = 1 + (preamble & 0x3)
+              //                  val sign = preamble & 0x40
+              //                  val ff = (preamble & 0x0C) >> 2
+              //                  var exponent = BigInt(iter.getBytes(szOfExp)).toLong
+              //                  val mantissaEncFrm = BigInt(iter.getBytes(length - szOfExp - 1)).toLong
+              //                  var mantissa = mantissaEncFrm << ff
+              //                  while ((mantissa & 0x000ff00000000000L) == 0x0) {
+              //                    exponent = exponent - 8
+              //                    mantissa = mantissa << 8
+              //                  }
+              //                  while ((mantissa & 0x0010000000000000L) == 0x0) {
+              //                    exponent = exponent - 1
+              //                    mantissa = mantissa << 1
+              //                  }
+              //                  mantissa &= 0x0FFFFFFFFFFFFFL
+              //                  var value = ((exponent + 1023 + 52) << 52) | mantissa
+              //                  if (sign == 1) {
+              //                    value = value | 0x8000000000000000L
+              //                  }
+              //                  java.lang.Double.longBitsToDouble(value);
+              //                }
+              //
+              //                Asn1Double(result)
               case 0x0A ⇒
                 val num = length match {
                   case 1 ⇒ iter.getByte.toInt
@@ -266,15 +296,15 @@ object BEREncoder extends Asn1Encoder {
                 }
                 Asn1Enumerated(num)
               case 0x0B ⇒ //Embedded PDV
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                Asn1EmbeddedPDV(iter.getBytes(length)) //TODO do something with the data (https://www.obj-sys.com/asn1tutorial/node125.html)
               case 0x0C ⇒ //UTF-8 String
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x0D ⇒ //Relative OID
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                Asn1RelativeOID(iter.getBytes(length))
               case 0x10 ⇒
-                Asn1Sequence(loop(iter.take(length), List()): _*)
+                Asn1Sequence(loop(iter.getByteString(length), List()): _*)
               case 0x11 ⇒
-                Asn1Set(loop(iter.take(length), List()): _*)
+                Asn1Set(loop(iter.getByteString(length), List()): _*)
               case 0x12 ⇒ //NumericString
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x13 ⇒ //PrintableString
@@ -308,16 +338,16 @@ object BEREncoder extends Asn1Encoder {
               case _ ⇒ throw new Error(s"Unkown classTag 0x${classTag.toHexString}")
             }
         }
-        res
+        (res, iter.toByteString)
       } catch {
         case e: NoSuchElementException ⇒
           println("0x" + str.map(_.toInt.toHexString).mkString(", 0x"))
           throw e
       }
+
     }
 
-    val iter = str.iterator
-    val result = once(iter)
+    val result = loop(str, List.empty)
     result
   }
 }

@@ -20,5 +20,5 @@ import akka.util.ByteString
 
 trait Asn1Encoder {
   def encode(obj: Asn1Object): ByteString
-  def decode(str: ByteString): Asn1Object
+  def decode(str: ByteString): List[Asn1Object]
 }

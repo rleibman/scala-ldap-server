@@ -2,17 +2,14 @@ package ldap.client
 
 import ldap._
 import asn1.BEREncoder
-import akka._
-import akka.actor.{ Actor, ActorRef, Props, ActorSystem }
+import akka.actor.{ Actor, Props, ActorSystem }
 import akka.io.{ IO, Tcp }
-import akka.util.ByteString
 import java.net.InetSocketAddress
 import scala.concurrent.Future
 import scala.concurrent.Promise
+import akka.actor.Stash
 
-case class UserPass(user: String, pass: String)
-
-case class LdapConfig2(
+case class LdapConfig(
   host: String,
   port: Int,
   authSearchUser: String,
@@ -23,12 +20,13 @@ case class LdapConfig2(
 
 object LdapClient {
   object TcpClient {
-    def props(remote: InetSocketAddress, promise: Promise[ByteString]) =
-      Props(classOf[TcpClient], remote, promise)
+    def props(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) =
+      Props(classOf[TcpClient], remote, promise, checkReady)
   }
-  class TcpClient(remote: InetSocketAddress, promise: Promise[ByteString]) extends Actor {
+  class TcpClient(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) extends Actor with Stash {
     import Tcp._
     import context.system
+    val acc = scala.collection.mutable.ListBuffer[LdapMessage]()
 
     IO(Tcp) ! Connect(remote)
 
@@ -40,37 +38,46 @@ object LdapClient {
       case c @ Connected(remote, local) =>
         val connection = sender()
         connection ! Register(self)
+        unstashAll()
         context become {
-          case data: ByteString =>
-            connection ! Write(data)
+          case msg: LdapMessage =>
+            val asn1Request = LdapAsn1Decoder.encode(msg)
+            val bareRequest = BEREncoder.encode(asn1Request)
+            connection ! Write(bareRequest)
           case CommandFailed(w: Write) =>
             // O/S buffer was full
             promise.failure(new Error("Write failed"))
+            ()
           case Received(data) =>
-            promise.success(data)
+            val asn1Response = BEREncoder.decode(data)
+            val responses = asn1Response.map(LdapAsn1Decoder.decode)
+            acc ++= responses
+            responses.foreach { response =>
+              if (checkReady(response)) {
+                promise.success(acc.toList)
+              }
+            }
+            ()
           case "close" =>
             connection ! Close
             promise.failure(new Error(s"I really don't know how this was closed without receiving anything"))
+            ()
           case a: ConnectionClosed =>
             context stop self
-            promise.failure(new Error(s"I really don't know how this was closed without receiving anything: ${a}"))
+            //            promise.failure(new Error(s"I really don't know how this was closed without receiving anything: ${a}"))
+            ()
         }
-      case a => promise.failure(new Error(s"I really don't know how I got here: ${a}"))
+      case a =>
+        //        promise.failure(new Error(s"I really don't know how I got here: ${a}"))
+        stash()
+
     }
   }
-  def sendMessage(config: LdapConfig2, msg: LdapMessage)(implicit system: ActorSystem): Future[LdapMessage] = {
-    import system.dispatcher
-    val asn1Request = LdapAsn1Decoder.encode(msg)
-    val bareRequest = BEREncoder.encode(asn1Request)
-    val promise = Promise[ByteString]()
-    val client = system.actorOf(TcpClient.props(new InetSocketAddress(config.host, config.port), promise))
-    client ! bareRequest
-    promise.future.map {
-      bareResponse =>
-        val asn1Response = BEREncoder.decode(bareResponse)
-        val response = LdapAsn1Decoder.decode(asn1Response)
-        response
-    }
+  private def sendMessage(config: LdapConfig, msg: LdapMessage, checkReady: LdapMessage => Boolean)(implicit system: ActorSystem): Future[List[LdapMessage]] = {
+    val promise = Promise[List[LdapMessage]]()
+    val client = system.actorOf(TcpClient.props(new InetSocketAddress(config.host, config.port), promise, checkReady))
+    client ! msg
+    promise.future
   }
 
   /**
@@ -91,26 +98,44 @@ object LdapClient {
   //  attributes: Seq[String] = Seq()
   //) extends Request
   //case class BindRequest(version: Byte, name: String, authChoice: LdapAuthentication) extends Request
-  def apply(config: LdapConfig2, userPass: UserPass)(implicit system: ActorSystem): Future[LdapClient] = {
+  def apply(config: LdapConfig)(implicit system: ActorSystem): Future[Option[LdapClient]] = {
     import system.dispatcher
-    import LdapResult._
     val fut = for {
-      foundUserMsg <- {
-        val msg = LdapMessage(1, SearchRequest(baseObject = config.authSearchBase, filter = Some(PresentFilter(config.authSearchFilter))))
-        sendMessage(config, msg)
+      bindResponse <- {
+        val msg = LdapMessage(1, BindRequest(3, config.authSearchUser, LdapSimpleAuthentication(config.authSearchPassword)))
+        sendMessage(config, msg, { _.protocolOp.isInstanceOf[BindResponse] }).map(_.head.protocolOp.asInstanceOf[BindResponse])
       }
-      boundUserMsg <- {
-        val searchResultDone = foundUserMsg.protocolOp.asInstanceOf[SearchResultDone]
-        if (searchResultDone.ldapResult != LDAPResultType.success)
-          throw new Error("Bad authentication, Bad!")
-        val msg = LdapMessage(2, BindRequest(3, "foundUser", LdapSimpleAuthentication(userPass.pass)))
-        sendMessage(config, msg)
+      ldapClient <- bindResponse.ldapResult.opResult match {
+        case LDAPResultType.success =>
+          Future.successful(Some(new LdapClient(config)))
+        case LDAPResultType.invalidCredentials |
+          LDAPResultType.inappropriateAuthentication |
+          LDAPResultType.authMethodNotSupported |
+          LDAPResultType.strongerAuthRequired =>
+          //I separate this because they're specific to binding
+          println(bindResponse.ldapResult.diagnosticMessage)
+          Future.successful(None)
+        case _ =>
+          println(bindResponse.ldapResult.diagnosticMessage)
+          Future.successful(None)
       }
-    } yield (boundUserMsg)
-    fut.map(_ => new LdapClient())
+    } yield (ldapClient)
+    fut.recover {
+      case t =>
+        t.printStackTrace()
+        None
+    }
   }
 }
 
-class LdapClient {
+class LdapClient(val config: LdapConfig)(implicit system: ActorSystem) {
+  import system.dispatcher
+  var counter = 1L
 
+  def sendSearchRequest(request: SearchRequest): Future[List[SearchResult]] = {
+    val msgRequest = LdapMessage(counter, request)
+    counter = counter + 1
+    val fut = LdapClient.sendMessage(config, msgRequest, { _.protocolOp.isInstanceOf[SearchResultDone] })
+    fut.map(msg => msg.map(_.protocolOp.asInstanceOf[SearchResult]))
+  }
 }

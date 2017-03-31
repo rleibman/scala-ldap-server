@@ -19,6 +19,7 @@ package ldap
 import asn1._
 import asn1.Asn1Object
 import java.util.UUID
+import java.net.URI
 
 object LdapAsn1Decoder extends Config {
   private def encode(filter: Filter): Asn1ContextSpecific = filter match {
@@ -57,15 +58,26 @@ object LdapAsn1Decoder extends Config {
             Asn1Int(request.sizeLimit),
             Asn1Int(request.timeLimit),
             Asn1Boolean(request.typesOnly),
-            request.filter.map(encode).getOrElse(Asn1Null())),
-          Asn1Sequence(request.attributes.map(Asn1String(_)): _*))
+            request.filter.map(encode).getOrElse(Asn1Null()),
+            Asn1Sequence(request.attributes.map(Asn1String(_)): _*)
+          )
+        )
+      case BindRequest(version: Int, name: String, authChoice: LdapAuthentication) =>
+        val auth = authChoice match {
+          case LdapSimpleAuthentication(password) => Asn1ContextSpecific(0, password.getBytes)
+          case LdapSaslAuthentication(mech, creds) => Asn1ContextSpecific(3, mech.getBytes) //TODO missing creds
+          case _ => throw new Error(s"I don't support ${authChoice.getClass} authentication")
+        }
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(0, Asn1Int(version), Asn1String(name), auth))
       case request: Request =>
-        throw new Error("Why are you trying to encode a request?, that doesn't make much sense")
+        throw new Error("Why are you trying to encode a request?, if you're working on the client you haven't yet coded this!")
       case BindResponse(LdapResult(opResult, matchedDN, diagnosticMessage, referral), serverSaslCreds) ⇒
         //TODO do something with referral and serverSaslCreds
         List(Asn1Number(msg.messageId.toByte), Asn1Application(1, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
       case SearchResultEntry(id: UUID, dn: String, attributes: Map[String, Seq[String]]) ⇒
-        List(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn)))
+        //Note that we ignore the uuid, the client doesn't know anything about it.
+        val attSequence = Asn1Sequence(attributes.toSeq.map(tuple => Asn1Sequence(Asn1String(tuple._1), Asn1Set(tuple._2.map(Asn1String(_)): _*))): _*)
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn), attSequence))
       case SearchResultDone(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
         List(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
       case SearchResultEntryReference() ⇒ throw new Error("Not yet supported")
@@ -96,32 +108,33 @@ object LdapAsn1Decoder extends Config {
     }
 
     val applicationAsn1 = seq.value(1).asInstanceOf[Asn1Application]
+    val values = applicationAsn1.value.toSeq
 
     val operation: MessageProtocolOp = applicationAsn1.tag match {
       case 0 ⇒ {
-        applicationAsn1.value.toSeq match {
-          case Seq(Asn1Byte(version), Asn1String(name), Asn1ContextSpecific(tag, password)) ⇒
-            BindRequest(version, name, LdapSimpleAuthentication(password.map(_.toChar).mkString))
+        values match {
+          case Seq(Asn1Number(version), Asn1String(name), Asn1ContextSpecific(tag, password)) ⇒
+            BindRequest(version.toInt, name, LdapSimpleAuthentication(password.map(_.toChar).mkString))
         }
       }
       case 2 ⇒
         UnbindRequest()
       case 3 ⇒ {
-        val seq = applicationAsn1.value.toSeq
-        val attributes = if (seq.length > 7) {
-          seq(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value)
+        val attributes = if (values.length > 7) {
+          values(7).asInstanceOf[Asn1Sequence].value.map(_.asInstanceOf[Asn1String].value)
         } else {
           Seq.empty
         }
         SearchRequest(
-          seq(0).asInstanceOf[Asn1String].value,
-          SearchRequestScope(seq(1).asInstanceOf[Asn1Enumerated].value.toInt),
-          DerefAliases(seq(2).asInstanceOf[Asn1Enumerated].value.toInt),
-          (seq(3).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
-          (seq(4).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
-          seq(5).asInstanceOf[Asn1Boolean].value,
-          Some(decodeFilter(seq(6).asInstanceOf[Asn1ContextSpecific])),
-          attributes)
+          values(0).asInstanceOf[Asn1String].value,
+          SearchRequestScope(values(1).asInstanceOf[Asn1Enumerated].value.toInt),
+          DerefAliases(values(2).asInstanceOf[Asn1Enumerated].value.toInt),
+          (values(3).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
+          (values(4).asInstanceOf[Asn1Number[_ <: Number]]).value.intValue(),
+          values(5).asInstanceOf[Asn1Boolean].value,
+          Some(decodeFilter(values(6).asInstanceOf[Asn1ContextSpecific])),
+          attributes
+        )
       }
       case 6 ⇒
         ModifyRequest("")
@@ -140,16 +153,37 @@ object LdapAsn1Decoder extends Config {
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 16 ⇒
         AbandonRequest(messageId: Long)
-      case 1 //BindResponse
-        | 4 //SearchResultEntry("")
-        | 5 //SearchResultDone("")
-        | 7 //ModifyResponse("")
+      case 4 =>
+        val attributes =
+          values(1).asInstanceOf[Asn1Sequence].value.map {
+            value1 =>
+              (value1.asInstanceOf[Asn1Sequence].value(0).asInstanceOf[Asn1String].value, value1.asInstanceOf[Asn1Sequence].value(1).asInstanceOf[Asn1Set].value.map(_.asInstanceOf[Asn1String].value).toSeq)
+          }.toMap
+        val uuid = null //The client doesn't know anything about uuid's in the server
+        SearchResultEntry(uuid, values(0).asInstanceOf[Asn1String].value, attributes)
+      case 5 =>
+        val referral = if (values.length > 3) {
+          (values(3).asInstanceOf[Seq[Asn1String]].map(aString => new URI(aString.value))).toList
+        } else {
+          List.empty
+        }
+        val result = LdapResult(LDAPResultType(values(0).asInstanceOf[Asn1Enumerated].value), values(1).asInstanceOf[Asn1String].value, values(2).asInstanceOf[Asn1String].value, referral)
+        SearchResultDone(result)
+      case 1 =>
+        val referral = if (values.length > 3) {
+          (values(3).asInstanceOf[Seq[Asn1String]].map(aString => new URI(aString.value))).toList
+        } else {
+          List.empty
+        }
+        val result = LdapResult(LDAPResultType(values(0).asInstanceOf[Asn1Enumerated].value), values(1).asInstanceOf[Asn1String].value, values(2).asInstanceOf[Asn1String].value, referral)
+        BindResponse(result, None) //TODO add serverSaslCreds
+      case 7 //ModifyResponse("")
         | 9 //AddResponse
         | 11 //DelResponse 
         | 13 // ModifyDNResponse
         | 15 //CompareResponse
         | 19 => // SearchResultReference
-        throw new Error("Why are you trying to decode a response+, that doesn't make much sense")
+        throw new Error("Why are you trying to decode a response? If you're working on the client you haven't yet coded this!")
       case _ ⇒ //ExtendedRequest, ExtendedResponse, IntermediateResponse 23 | 24 | 25
         val res = plugins.foldLeft(Option[MessageProtocolOp](null))((acc, plugin) => acc.fold(plugin.decodeApplication(applicationAsn1))(_ => acc))
         res.fold(throw new Error(s"Unknown Ldap: Operation ${applicationAsn1.tag}"))(identity)
@@ -164,3 +198,9 @@ object LdapAsn1Decoder extends Config {
     LdapMessage(messageId, operation, controls)
   }
 }
+//
+//request = List(Asn1Sequence(List(Asn1Byte(1), Asn1Application(3,List(Asn1String(), Asn1Enumerated(0), Asn1Enumerated(3), Asn1Int(0), Asn1Int(0)  , Asn1False, Asn1ContextSpecific(6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x43, 0x6c, 0x61, 0x73, 0x73))), Asn1Sequence(List(Asn1String(subschemaSubentry))))))
+//
+//request = List(Asn1Sequence(List(Asn1Byte(2), Asn1Application(3,List(Asn1String(), Asn1Enumerated(0), Asn1Enumerated(3), Asn1Byte(0), Asn1Byte(0), Asn1False, Asn1ContextSpecific(6f, 0x62, 0x6a, 0x65, 0x63, 0x74, 0x43, 0x6c, 0x61, 0x73, 0x73), Asn1Sequence(List(Asn1String(subschemaSubentry))))))))
+//requestMsg = LdapMessage(2,SearchRequest(,baseObject,derefAlways,0,0,false,Some(PresentFilter(objectClass)),List(subschemaSubentry)),List())
+//

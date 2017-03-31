@@ -22,52 +22,52 @@ import java.util.UUID
 case class LDAPResultType(code: Int)
 
 object LDAPResultType {
-  val success = new LDAPResultType(0)
-  val operationsError = new LDAPResultType(1)
-  val protocolError = new LDAPResultType(2)
-  val timeLimitExceeded = new LDAPResultType(3)
-  val sizeLimitExceeded = new LDAPResultType(4)
-  val compareFalse = new LDAPResultType(5)
-  val compareTrue = new LDAPResultType(6)
-  val authMethodNotSupported = new LDAPResultType(7)
-  val strongerAuthRequired = new LDAPResultType(8)
+  val success = LDAPResultType(0)
+  val operationsError = LDAPResultType(1)
+  val protocolError = LDAPResultType(2)
+  val timeLimitExceeded = LDAPResultType(3)
+  val sizeLimitExceeded = LDAPResultType(4)
+  val compareFalse = LDAPResultType(5)
+  val compareTrue = LDAPResultType(6)
+  val authMethodNotSupported = LDAPResultType(7)
+  val strongerAuthRequired = LDAPResultType(8)
   //                       -- 9 reserved --
-  val referral = new LDAPResultType(10)
-  val adminLimitExceeded = new LDAPResultType(11)
-  val unavailableCriticalExtension = new LDAPResultType(12)
-  val confidentialityRequired = new LDAPResultType(13)
-  val saslBindInProgress = new LDAPResultType(14)
-  val noSuchAttribute = new LDAPResultType(16)
-  val undefinedAttributeType = new LDAPResultType(17)
-  val inappropriateMatching = new LDAPResultType(18)
-  val constraintViolation = new LDAPResultType(19)
-  val attributeOrValueExists = new LDAPResultType(20)
-  val invalidAttributeSyntax = new LDAPResultType(21)
+  val referral = LDAPResultType(10)
+  val adminLimitExceeded = LDAPResultType(11)
+  val unavailableCriticalExtension = LDAPResultType(12)
+  val confidentialityRequired = LDAPResultType(13)
+  val saslBindInProgress = LDAPResultType(14)
+  val noSuchAttribute = LDAPResultType(16)
+  val undefinedAttributeType = LDAPResultType(17)
+  val inappropriateMatching = LDAPResultType(18)
+  val constraintViolation = LDAPResultType(19)
+  val attributeOrValueExists = LDAPResultType(20)
+  val invalidAttributeSyntax = LDAPResultType(21)
   //                       -- 22-31 unused --
-  val noSuchObject = new LDAPResultType(32)
-  val aliasProblem = new LDAPResultType(33)
-  val invalidDNSyntax = new LDAPResultType(34)
+  val noSuchObject = LDAPResultType(32)
+  val aliasProblem = LDAPResultType(33)
+  val invalidDNSyntax = LDAPResultType(34)
   //                       -- 35 reserved for undefined isLeaf --
-  val aliasDereferencingProblem = new LDAPResultType(36)
+  val aliasDereferencingProblem = LDAPResultType(36)
   //                       -- 37-47 unused --
-  val inappropriateAuthentication = new LDAPResultType(48)
-  val invalidCredentials = new LDAPResultType(49)
-  val insufficientAccessRights = new LDAPResultType(50)
-  val busy = new LDAPResultType(51)
-  val unavailable = new LDAPResultType(52)
-  val unwillingToPerform = new LDAPResultType(53)
-  val loopDetect = new LDAPResultType(54)
+  val inappropriateAuthentication = LDAPResultType(48)
+  val invalidCredentials = LDAPResultType(49)
+  val insufficientAccessRights = LDAPResultType(50)
+  val busy = LDAPResultType(51)
+  val unavailable = LDAPResultType(52)
+  val unwillingToPerform = LDAPResultType(53)
+  val loopDetect = LDAPResultType(54)
   //                       -- 55-63 unused --
-  val namingViolation = new LDAPResultType(64)
-  val objectClassViolation = new LDAPResultType(65)
-  val notAllowedOnNonLeaf = new LDAPResultType(66)
-  val notAllowedOnRDN = new LDAPResultType(67)
-  val entryAlreadyExists = new LDAPResultType(68)
-  val objectClassModsProhibited = new LDAPResultType(69)
+  val namingViolation = LDAPResultType(64)
+  val objectClassViolation = LDAPResultType(65)
+  val notAllowedOnNonLeaf = LDAPResultType(66)
+  val notAllowedOnRDN = LDAPResultType(67)
+  val entryAlreadyExists = LDAPResultType(68)
+  val objectClassModsProhibited = LDAPResultType(69)
   //                       -- 70 reserved for CLDAP --
-  val affectsMultipleDSAs = new LDAPResultType(71)
+  val affectsMultipleDSAs = LDAPResultType(71)
   //                       -- 72-79 unused --
-  val other = new LDAPResultType(80)
+  val other = LDAPResultType(80)
 }
 
 trait MessageProtocolOp
@@ -130,7 +130,7 @@ case class SearchResultEntryReference() extends SearchResult
 
 case class UnbindRequest() extends Request
 case class AbandonRequest(messageId: Long) extends Request
-case class BindRequest(version: Byte, name: String, authChoice: LdapAuthentication) extends Request
+case class BindRequest(version: Int, name: String, authChoice: LdapAuthentication) extends Request
 case class BindResponse(ldapResult: LdapResult, serverSaslCreds: Option[String] = None) extends Response
 abstract class IntermediateRespose() extends Response {
   val oid: Option[LDAPOID]
@@ -140,11 +140,12 @@ case class SearchRequest(
   baseObject: String,
   scope: SearchRequestScope = SearchRequestScope.singleLevel,
   derefAliases: DerefAliases = DerefAliases.derefAlways,
-  sizeLimit: Int = Int.MaxValue,
-  timeLimit: Int = Int.MaxValue,
+  sizeLimit: Int = 0,
+  timeLimit: Int = 0,
   typesOnly: Boolean = false,
   filter: Option[Filter] = None,
-  attributes: Seq[String] = Seq.empty) extends Request
+  attributes: Seq[String] = Seq.empty
+) extends Request
 
 case class SearchResultReference(str: String) extends Response
 case class ModifyRequest(str: String) extends Request
@@ -175,5 +176,6 @@ case class Node(
   operationalAttributes: Map[String, Seq[String]], ////rfc4512: Attributes. such as creatorsName, createTimestamp, modifiersName, modifyTimestamp, structuralObjectClass, governingStructureRule, objectClasses, attributeTypes, matchingRules, distinguishedNameMatch, ldapSyntaxes, matchingRuleUse
   userAttributes: Map[String, Seq[String]],
   parentId: Option[String],
-  children: Seq[String] = Seq())
+  children: Seq[String] = Seq()
+)
 

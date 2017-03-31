@@ -87,15 +87,20 @@ case class Asn1ContextSpecific(tag: Int, value: Array[Byte]) extends Asn1Object 
 case class Asn1Null() extends Asn1Object
 
 case class Asn1String(value: String) extends Asn1Object
+case class Asn1ObjectDescriptor(value: String) extends Asn1Object
 
 case class Asn1Enumerated(value: Int) extends Asn1Object
+case class Asn1EmbeddedPDV(value: Array[Byte]) extends Asn1Object
 
 object Asn1Enumerated {
   def apply[T <: Enumeration#Value](value: T): Asn1Enumerated = Asn1Enumerated(value.id.toInt)
 }
 
 case class Asn1ObjectIdentifier(value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+  override def toString = s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+}
+case class Asn1RelativeOID(value: Array[Byte]) extends Asn1Object {
+  override def toString = s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
 }
 
 case class Asn1External(
