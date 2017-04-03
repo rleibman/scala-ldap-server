@@ -112,6 +112,8 @@ object SubstringValueType extends Enumeration {
   val initial, any, `final` = Value
 }
 import SubstringValueType._
+import java.time.format.DateTimeFormatter
+
 case class SubstringValue(substringValueType: SubstringValueType, substring: String)
 case class SubstringsFilter(`type`: String, substrings: Seq[SubstringValue]) extends Filter(FilterType.substrings)
 case class GreaterOrEqualFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.greaterOrEqual)
@@ -150,8 +152,8 @@ case class SearchRequest(
 case class SearchResultReference(str: String) extends Response
 case class ModifyRequest(str: String) extends Request
 case class ModifyResponse(str: String) extends Response
-case class AddRequest(str: String) extends Request
-case class AddResponse(str: String) extends Response
+case class AddRequest(dn: String, userAttributes: Map[String, Seq[String]]) extends Request
+case class AddResponse(ldapResult: LdapResult) extends Response
 case class DelRequest(str: String) extends Request
 case class DelResponse(str: String) extends Response
 case class ModifyDNRequest(str: String) extends Request
@@ -170,12 +172,94 @@ trait Control {
 
 case class LdapMessage(messageId: Long, protocolOp: MessageProtocolOp, controls: Seq[Control] = Seq.empty)
 
+//      "creatorsName" -> List(s"cn=Manager,${baseDN}"),
+//      "createTimestamp" -> List(date),
+//      "modifiersName" -> List(s"cn=Manager,${baseDN}"),
+//      "modifyTimestamp" -> List(date),
+//      "structuralObjectClass" -> List(structuralObjectClass),
+//      "subschemaSubentry" -> List("cn=Subschema")
+
+object Node {
+  def operationAttributes = Set(
+    "entryUUID",
+    "creatorsName",
+    "createTimestamp",
+    "modifiersName",
+    "modifyTimestamp",
+    "structuralObjectClass",
+    "governingStructureRule",
+    "objectClass",
+    "attributeTypes",
+    "matchingRules",
+    "distinguishedNameMatch",
+    "ldapSyntaxes",
+    "matchingRuleUse"
+  )
+  def filterOutOperationalAttributes(attributes: Map[String, Seq[String]]) = {
+    attributes.filter(a => !operationAttributes.contains(a._1))
+  }
+  def apply(
+    id: String,
+    dn: String,
+    userAttributes: Map[String, Seq[String]],
+    parentId: Option[String],
+    baseDN: String,
+    structuralObjectClass: String = "subentry",
+    objectClass: List[String] = List.empty[String]
+  ): Node = {
+    val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
+    apply(
+      id = id,
+      dn = dn,
+      userAttributes = filterOutOperationalAttributes(userAttributes),
+      parentId = parentId,
+      creatorsName = s"cn=Manager,${baseDN}",
+      createTimeStamp = date,
+      modifiersName = s"cn=Manager,${baseDN}",
+      modifyTimestamp = date,
+      structuralObjectClass = structuralObjectClass,
+      governingStructureRule = "",
+      objectClass = objectClass,
+      attributeTypes = List.empty[String],
+      matchingRules = List.empty[String],
+      distinguishedNameMatch = List.empty[String],
+      ldapSyntaxes = List.empty[String],
+      matchingRuleUse = List.empty[String],
+      subschemaSubentry = "cn=Subschema"
+    )
+  }
+}
+
 case class Node(
-  id: String,
-  dn: String,
-  operationalAttributes: Map[String, Seq[String]], ////rfc4512: Attributes. such as creatorsName, createTimestamp, modifiersName, modifyTimestamp, structuralObjectClass, governingStructureRule, objectClasses, attributeTypes, matchingRules, distinguishedNameMatch, ldapSyntaxes, matchingRuleUse
-  userAttributes: Map[String, Seq[String]],
-  parentId: Option[String],
-  children: Seq[String] = Seq()
-)
+    id: String,
+    dn: String,
+    userAttributes: Map[String, Seq[String]],
+    parentId: Option[String],
+    //Operational Attributes, per rfc4512
+    creatorsName: String,
+    createTimeStamp: String,
+    modifiersName: String,
+    modifyTimestamp: String,
+    structuralObjectClass: String,
+    governingStructureRule: String,
+    objectClass: List[String],
+    attributeTypes: List[String],
+    matchingRules: List[String],
+    distinguishedNameMatch: List[String],
+    ldapSyntaxes: List[String],
+    matchingRuleUse: List[String],
+    subschemaSubentry: String
+) {
+  def operationalAttributes: Map[String, Seq[String]] = {
+    Map(
+      "entryUUID" -> Seq(id),
+      "creatorsName" -> Seq(creatorsName),
+      "createTimeStamp" -> Seq(createTimeStamp),
+      "modifiersName" -> Seq(modifiersName),
+      "modifyTimestamp" -> Seq(modifyTimestamp),
+      "structuralObjectClass" -> Seq(structuralObjectClass),
+      "governingStructureRule" -> Seq(governingStructureRule)
+    )
+  }
+}
 

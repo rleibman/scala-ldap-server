@@ -67,17 +67,6 @@ object LdapServer extends App with Config {
   val log = Logging(system, getClass)
 
   def init() = {
-    val baseDN = config.getString("scala-ldap-server.base")
-    val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
-
-    def defaultOperationalAttributes(structuralObjectClass: String) = Map(
-      "creatorsName" -> List(s"cn=Manager,${baseDN}"),
-      "createTimestamp" -> List(date),
-      "modifiersName" -> List(s"cn=Manager,${baseDN}"),
-      "modifyTimestamp" -> List(date),
-      "structuralObjectClass" -> List(structuralObjectClass),
-      "subschemaSubentry" -> List("cn=Subschema")
-    )
 
     val dao = new MongoDAO()
     val fut = for {
@@ -86,8 +75,11 @@ object LdapServer extends App with Config {
         dao.update(Node(
           id = "",
           dn = "",
-          operationalAttributes = defaultOperationalAttributes("ScalaLDAProotDSE") ++
-          Map(
+          structuralObjectClass = "ScalaLDAProotDSE",
+          userAttributes = Map(
+            "objectClass" -> List("top", "ScalaLDAProotDSE"),
+            "vendorName" -> List("scala-ldap-server"),
+            "vendorVersion" -> List("0.0.2"),
             "configContext" -> List("cn=config"),
             "monitorContext" -> List("cn=Monitor"),
             "namingContexts" -> List(baseDN),
@@ -96,15 +88,10 @@ object LdapServer extends App with Config {
             "supportedFeatures" -> List(),
             "supportedLDAPVersion" -> List("3"),
             "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
-            "subschemaSubentry" -> List("cn=Subschema"),
             "altServer" -> List(),
             "entryDN" -> List("")
           ),
-          userAttributes = Map(
-            "objectClass" -> List("top", "ScalaLDAProotDSE"),
-            "vendorName" -> List("scala-ldap-server"),
-            "vendorVersion" -> List("0.0.2")
-          ),
+          baseDN = baseDN,
           parentId = None
         ))
       } else {
@@ -115,15 +102,15 @@ object LdapServer extends App with Config {
         dao.update(Node(
           id = "",
           dn = baseDN,
-          operationalAttributes = defaultOperationalAttributes("organization"),
+          baseDN = baseDN,
           userAttributes = Map(
-            "objectClass" -> List("top", "dcObject", "organization"),
             "dc" -> List("example"),
             "o" -> List("example"),
             "ou" -> List("example"),
             "description" -> List("example")
           ),
-          parentId = Some(root2.id)
+          parentId = Some(root2.id),
+          objectClass = List("top", "dcObject", "organization")
         ))
       } else {
         Future.successful(base.get)
@@ -133,7 +120,8 @@ object LdapServer extends App with Config {
         dao.update(Node(
           id = "",
           dn = "cn=Subschema",
-          operationalAttributes = defaultOperationalAttributes("subentry"),
+          baseDN = baseDN,
+          structuralObjectClass = "subentry",
           userAttributes = Map(
             "objectClass" -> List("top", "subentry", "subschema", "extensibleObject"),
             "cn" -> List("Subschema"),
@@ -146,9 +134,9 @@ object LdapServer extends App with Config {
       }
       firstLevel ← {
         val firstLevelNodes = List(
-          Node(id = "", dn = "cn=Manager", operationalAttributes = defaultOperationalAttributes("organizationalRole"), userAttributes = Map("objectClass" -> List("organizationalRole"), "cn" -> List("Manager"), "description" -> List("Directory Manager")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=Groups", operationalAttributes = defaultOperationalAttributes("organizationalUnit"), userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(base2.id)),
-          Node(id = "", dn = "ou=People", operationalAttributes = defaultOperationalAttributes("organizationalUnit"), userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(base2.id))
+          Node(id = "", dn = s"cn=Manager,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalRole", userAttributes = Map("objectClass" -> List("organizationalRole"), "cn" -> List("Manager"), "description" -> List("Directory Manager")), parentId = Some(base2.id)),
+          Node(id = "", dn = s"ou=Groups,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalUnit", userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(base2.id)),
+          Node(id = "", dn = s"ou=People,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalUnit", userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(base2.id))
         )
         Future.sequence(firstLevelNodes.map { node ⇒
           for {
@@ -157,9 +145,8 @@ object LdapServer extends App with Config {
           } yield (updatedNode)
         })
       }
-      updatedRoot ← dao.update(root2.copy(children = List(subschema2.id, base2.id)))
       pluginInits <- Future.traverse(plugins)(_.initialize(config))
-    } yield (updatedRoot)
+    } yield (root2)
 
     Await.result(fut, 5 minutes)
   }

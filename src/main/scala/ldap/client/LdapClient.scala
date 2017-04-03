@@ -8,7 +8,7 @@ import java.net.InetSocketAddress
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import akka.actor.Stash
-
+import scala.concurrent.duration._
 case class LdapConfig(
   host: String,
   port: Int,
@@ -23,12 +23,18 @@ object LdapClient {
     def props(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) =
       Props(classOf[TcpClient], remote, promise, checkReady)
   }
+  case object Timeout
   class TcpClient(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) extends Actor with Stash {
     import Tcp._
     import context.system
     val acc = scala.collection.mutable.ListBuffer[LdapMessage]()
 
     IO(Tcp) ! Connect(remote)
+    //TODO figure out how to implement a client timeout,
+    //Possibly start a timer when first calling Write, and restart it every time we receieve data
+    //Then when triggered, call a timeout.i
+    //    val cancelTimeout = system.scheduler.scheduleOnce(5 minutes, self, Timeout)(executor = system.dispatcher)
+    //    cancelTimeout
 
     def receive = {
       case CommandFailed(_: Connect) =>

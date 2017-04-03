@@ -83,7 +83,9 @@ object LdapAsn1Decoder extends Config {
       case SearchResultEntryReference() ⇒ throw new Error("Not yet supported")
       case SearchResultReference(_) ⇒ throw new Error("Not yet supported")
       case ModifyResponse(_) ⇒ throw new Error("Not yet supported")
-      case AddResponse(_) ⇒ throw new Error("Not yet supported")
+      case AddResponse(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
+        //TODO do something with referral
+        List(Asn1Number(msg.messageId.toByte), Asn1Application(9, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
       case DelResponse(_) ⇒ throw new Error("Not yet supported")
       case ModifyDNResponse(_) ⇒ throw new Error("Not yet supported")
       case CompareResponse(_) ⇒ throw new Error("Not yet supported")
@@ -140,8 +142,12 @@ object LdapAsn1Decoder extends Config {
         ModifyRequest("")
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 8 ⇒
-        AddRequest("")
-        throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
+        val attributes =
+          values(1).asInstanceOf[Asn1Sequence].value.map {
+            value1 =>
+              (value1.asInstanceOf[Asn1Sequence].value(0).asInstanceOf[Asn1String].value, value1.asInstanceOf[Asn1Sequence].value(1).asInstanceOf[Asn1Set].value.map(_.asInstanceOf[Asn1String].value).toSeq)
+          }.toMap
+        AddRequest(values(0).asInstanceOf[Asn1String].value, attributes)
       case 10 ⇒
         DelRequest("")
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")

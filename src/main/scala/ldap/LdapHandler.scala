@@ -25,6 +25,7 @@ import akka.event.Logging
 import akka.util.ByteString
 import asn1.BEREncoder
 import dao.MongoDAO
+import java.time.format.DateTimeFormatter
 
 class LdapHandler extends Actor with Config {
   import context.dispatcher
@@ -77,19 +78,18 @@ class LdapHandler extends Actor with Config {
         //        } else {
         //          requestedDN
         //        }
-        val bareDN = dn.replaceAll(s",${config.getString("scala-ldap-server.base")}", "").trim()
         //TODO rfc3673: The presence of the attribute description "+" (ASCII 43) in the list of attributes
         //in a Search Request [RFC2251] SHALL signify a request for the return of all operational attributes.
         scope match {
           case SearchRequestScope.baseObject ⇒
-            val nodeFut = dao.getNode(bareDN)
-            nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, bareDN, "Search successful (no results found)")))))(node => List(
+            val nodeFut = dao.getNode(dn)
+            nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)")))))(node => List(
               LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
               LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
             )))
           case SearchRequestScope.singleLevel ⇒
             val childrenFut = for {
-              top ← dao.getNode(bareDN)
+              top ← dao.getNode(dn)
               children ← top.fold {
                 Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
               }(top => dao.getChildren(top))
@@ -105,9 +105,37 @@ class LdapHandler extends Actor with Config {
       case ModifyRequest(str) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
-      case AddRequest(str) =>
-        //TODO write this
-        throw new Error(s"${msg.protocolOp} not handled")
+      case AddRequest(dn, attributes) =>
+        //rfc4511 4.7
+        val baseDN = config.getString("scala-ldap-server.base")
+        val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
+        val parentDN = dn.substring(dn.indexOf(","))
+        for {
+          exists <- dao.getNode(dn)
+          parent <- dao.getNode(parentDN)
+          result <- exists.fold {
+            val saveMe = Node(
+              id = "",
+              dn = dn,
+              userAttributes = Node.filterOutOperationalAttributes(attributes),
+              creatorsName = attributes.getOrElse("creatorsName", Seq(s"cn=Manager,${baseDN}")).head,
+              createTimeStamp = attributes.getOrElse("createTimeStamp", Seq(date)).head,
+              modifiersName = attributes.getOrElse("modifiersName", Seq(s"cn=Manager,${baseDN}")).head,
+              modifyTimestamp = attributes.getOrElse("modifyTimestamp", Seq(date)).head,
+              structuralObjectClass = attributes.getOrElse("structuralObjectClass", Seq("subentry")).head,
+              governingStructureRule = attributes.getOrElse("governingStructureRule", Seq("")).head,
+              objectClass = attributes.getOrElse("objectClass", Seq.empty[String]).toList,
+              attributeTypes = attributes.getOrElse("attributeTypes", Seq.empty[String]).toList,
+              matchingRules = attributes.getOrElse("matchingRules", Seq.empty[String]).toList,
+              distinguishedNameMatch = attributes.getOrElse("distinguishedNameMatch", Seq.empty[String]).toList,
+              ldapSyntaxes = attributes.getOrElse("ldapSyntaxes", Seq.empty[String]).toList,
+              matchingRuleUse = attributes.getOrElse("matchingRuleUse", Seq.empty[String]).toList,
+              subschemaSubentry = attributes.getOrElse("subschemaSubentry", Seq("cn=Subschema")).head,
+              parentId = parent.map(_.id)
+            )
+            dao.update(saveMe).map(_ => LdapResult(success, dn, s"$dn saved"))
+          }(_ => Future.successful(LdapResult(entryAlreadyExists, dn, s"$dn already exists")))
+        } yield (List(LdapMessage(msg.messageId, AddResponse(result))))
       case DelRequest(str) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")

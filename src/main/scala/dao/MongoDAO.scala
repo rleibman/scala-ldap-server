@@ -38,21 +38,25 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
             (bsonElement.name -> values)
           }).toMap
       }
-      val operationalAttributes = bson.getAs[BSONDocument]("operationalAttributes").fold(Map[String, Seq[String]]()) {
-        doc ⇒
-          (doc.elements.map { bsonElement ⇒
-            val values = bsonElement.value.asInstanceOf[BSONArray].as[List[String]]
-            (bsonElement.name -> values)
-          }).toMap
-      }
-
       Node(
-        bson.getAs[String]("_id").get,
-        bson.getAs[String]("dn").get,
-        operationalAttributes,
-        userAttributes,
-        bson.getAs[String]("parentId"),
-        bson.getAs[Seq[String]]("children").getOrElse(Seq[String]())
+        id = bson.getAs[String]("_id").get,
+        dn = bson.getAs[String]("dn").get,
+        userAttributes = userAttributes,
+        parentId = bson.getAs[String]("parentId"),
+        //Operational Attributes, per rfc4512
+        creatorsName = bson.getAs[String]("creatorsName").get,
+        createTimeStamp = bson.getAs[String]("createTimeStamp").get,
+        modifiersName = bson.getAs[String]("modifiersName").get,
+        modifyTimestamp = bson.getAs[String]("modifyTimestamp").get,
+        structuralObjectClass = bson.getAs[String]("structuralObjectClass").get,
+        governingStructureRule = bson.getAs[String]("governingStructureRule").get,
+        objectClass = bson.getAs[List[String]]("objectClass").getOrElse(List.empty),
+        attributeTypes = bson.getAs[List[String]]("attributeTypes").getOrElse(List.empty),
+        matchingRules = bson.getAs[List[String]]("matchingRules").getOrElse(List.empty),
+        distinguishedNameMatch = bson.getAs[List[String]]("distinguishedNameMatch").getOrElse(List.empty),
+        ldapSyntaxes = bson.getAs[List[String]]("ldapSyntaxes").getOrElse(List.empty),
+        matchingRuleUse = bson.getAs[List[String]]("matchingRuleUse").getOrElse(List.empty),
+        subschemaSubentry = bson.getAs[String]("subschemaSubentry").get
       )
     }
   }
@@ -66,11 +70,21 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
         "userAttributes" -> BSONDocument(node.userAttributes.map { tuple ⇒
           (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
         }),
-        "operationalAttributes" -> BSONDocument(node.operationalAttributes.map { tuple ⇒
-          (tuple._1, BSONArray(tuple._2.map(BSONString(_)).toArray))
-        }),
         "parentId" -> node.parentId,
-        "children" -> BSONArray(node.children)
+        //Operational Attributes, per rfc4512
+        "creatorsName" -> node.creatorsName,
+        "createTimeStamp" -> node.createTimeStamp,
+        "modifiersName" -> node.modifiersName,
+        "modifyTimestamp" -> node.modifyTimestamp,
+        "structuralObjectClass" -> node.structuralObjectClass,
+        "subschemaSubentry" -> node.subschemaSubentry,
+        "governingStructureRule" -> node.governingStructureRule,
+        "objectClass" -> node.objectClass,
+        "attributeTypes" -> node.attributeTypes,
+        "matchingRules" -> node.matchingRules,
+        "distinguishedNameMatch" -> node.distinguishedNameMatch,
+        "ldapSyntaxes" -> node.ldapSyntaxes,
+        "matchingRuleUse" -> node.matchingRuleUse
       )
 
     }
@@ -96,7 +110,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   def update(node: Node): Future[Node] = {
     val nodeWithId = if (node.id.isEmpty) {
       val id = UUID.randomUUID().toString()
-      node.copy(id = id, operationalAttributes = node.operationalAttributes ++ Map("entryUUID" -> Seq(id)))
+      node.copy(id = id)
     } else {
       node
     }
