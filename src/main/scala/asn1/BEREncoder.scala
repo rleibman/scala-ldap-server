@@ -68,7 +68,7 @@ object BEREncoder extends Asn1Encoder {
         }
       }
       obj match {
-        case Asn1Null() ⇒
+        case Asn1Null ⇒
           bb
         //Do nothing
 
@@ -161,7 +161,21 @@ object BEREncoder extends Asn1Encoder {
           ).toByte)
           putSize(bytes.size.toLong)
           bb.putBytes(bytes.toArray)
-        case a ⇒ throw new Error(s"Unknown type of Asn1Object ${obj}")
+        case Asn1Set(value) ⇒
+          val newBB = new ByteStringBuilder
+          value.foreach(a ⇒ loop(a, newBB))
+          val bytes = newBB.result()
+
+          bb.putByte((0x00 //Class (universal)
+            | 0x20 //Primitive or constructed (constructed)
+            | 0x11 //Tag (x)
+          ).toByte)
+          putSize(bytes.size.toLong)
+          bb.putBytes(bytes.toArray)
+        case Asn1BitString(_) =>
+          //TODO handle this
+          throw new Error(s"Unhandled type of Asn1Object ${obj}")
+        case _ ⇒ throw new Error(s"Unknown type of Asn1Object ${obj}")
       }
     }
     loop(obj, bb)
@@ -182,7 +196,7 @@ object BEREncoder extends Asn1Encoder {
       try {
         //        val b = iter.clone.toArray.map(_.formatted("%02X").takeRight(2)).mkString(" ")
         if (str.isEmpty) {
-          return (Asn1Null(), ByteString.empty) //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
+          return (Asn1Null, ByteString.empty) //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail
         }
         val iter = str.iterator
         val identifierOctet = iter.getByte
@@ -193,7 +207,7 @@ object BEREncoder extends Asn1Encoder {
         //          //I don't like doing this, but it really is very simple, there's nothing left in the stream, so just bail.
         //          //In the case of LDAP, we have the following
         //          // UnbindRequest ::= [APPLICATION 2] NULL
-        //          return Asn1Null()
+        //          return Asn1Null
         //        }
         val length = {
           if (!iter.hasNext) {
@@ -242,11 +256,12 @@ object BEREncoder extends Asn1Encoder {
                     Asn1Long(value)
                 }
               case 0x03 ⇒ //Bit String
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                val value = iter.getBytes(length).map(_.toChar).mkString
+                Asn1BitString(value)
               case 0x04 ⇒ //OCTET STRING
                 val value = iter.getBytes(length).map(_.toChar).mkString
                 Asn1String(value)
-              case 0x05 ⇒ Asn1Null()
+              case 0x05 ⇒ Asn1Null
               case 0x06 ⇒ Asn1ObjectIdentifier(iter.getBytes(length))
               case 0x07 ⇒ //Object Descriptor
                 val value = iter.getBytes(length).map(_.toChar).mkString
@@ -298,41 +313,61 @@ object BEREncoder extends Asn1Encoder {
               case 0x0B ⇒ //Embedded PDV
                 Asn1EmbeddedPDV(iter.getBytes(length)) //TODO do something with the data (https://www.obj-sys.com/asn1tutorial/node125.html)
               case 0x0C ⇒ //UTF-8 String
-                throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
+                //TODO check this
+                val value = iter.getBytes(length).map(_.toChar).mkString
+                Asn1String(value)
               case 0x0D ⇒ //Relative OID
                 Asn1RelativeOID(iter.getBytes(length))
+              case 0x0E | 0x0F ⇒ //WTF? These are reserved
+                //TODO check this
+                val value = iter.getBytes(length).map(_.toChar).mkString
+                println(s"Unhandled classTag 0x${classTag.toHexString}, with possible value '${value}', these are reserved values and it should not have gotten them")
+                Asn1Null
               case 0x10 ⇒
                 Asn1Sequence(loop(iter.getByteString(length), List()): _*)
               case 0x11 ⇒
                 Asn1Set(loop(iter.getByteString(length), List()): _*)
               case 0x12 ⇒ //NumericString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x13 ⇒ //PrintableString
                 val value = iter.getBytes(length).map(_.toChar).mkString
                 Asn1String(value)
               case 0x14 ⇒ //T61String
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x15 ⇒ //VideotexString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x16 ⇒ //IA5String
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x17 ⇒ //UTCTime
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x18 ⇒ //GeneralizedTime
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x19 ⇒ //GraphicString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1A ⇒ //VisibleString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1B ⇒ //GeneralString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1C ⇒ //UniversalString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1D ⇒ //CHARACTER STRING
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1E ⇒ //BMPString
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
               case 0x1F ⇒ //Use long form
+                //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
 
               case _ ⇒ throw new Error(s"Unkown classTag 0x${classTag.toHexString}")

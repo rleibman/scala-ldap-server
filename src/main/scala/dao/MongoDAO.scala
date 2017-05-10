@@ -107,7 +107,16 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
     } yield (results)
   }
 
+  def getSubtree(node: Node): Future[List[Node]] = {
+    val query = BSONDocument("dn" -> BSONRegex(s".+${node.dn}", "i"))
+    for {
+      collection <- nodeCollectionFut
+      results <- collection.find(query).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
+    } yield (results)
+  }
+
   def update(node: Node): Future[Node] = {
+    //TODO protect that tree structure isn't affected by the update
     val nodeWithId = if (node.id.isEmpty) {
       val id = UUID.randomUUID().toString()
       node.copy(id = id)
@@ -120,4 +129,9 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
     } yield (nodeWithId)
   }
 
+  case class LdapTree()
+
+  def getLdapTree(): Future[LdapTree] = {
+    ???
+  }
 }

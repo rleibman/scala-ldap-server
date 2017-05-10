@@ -20,17 +20,28 @@ import asn1._
 import asn1.Asn1Object
 import java.util.UUID
 import java.net.URI
+import akka.util.ByteString
 
 object LdapAsn1Decoder extends Config {
   private def encode(filter: Filter): Asn1ContextSpecific = filter match {
-    case filter: PresentFilter => Asn1ContextSpecific(filter.filterType, filter.str.getBytes)
-    case _ => throw new Error(s"Unhadled Filter Type ${filter}")
+    case PresentFilter(str) => Asn1ContextSpecific(filter.filterType, str.getBytes)
+    case EqualityMatchFilter(attributeDescription, attributeValue) =>
+      val byteArray = BEREncoder.encode(Asn1Sequence(Asn1String(attributeDescription), Asn1String(attributeValue))).toArray
+      Asn1ContextSpecific(filter.filterType, byteArray)
+    //TODO 
+    case _ => throw new Error(s"Unhandled Filter Type ${filter}")
   }
   private def decodeFilter(asn1ContextSpecific: Asn1ContextSpecific): Filter = {
     asn1ContextSpecific.tag match {
       case FilterType.present =>
         PresentFilter(asn1ContextSpecific.value.map(_.toChar).mkString)
-      case _ => throw new Error(s"Unhadled Filter Type ${asn1ContextSpecific.tag}")
+      case FilterType.equalityMatch =>
+        val attributeValueAssertion = BEREncoder.decode(ByteString(asn1ContextSpecific.value))
+        attributeValueAssertion match {
+          case List(Asn1String(attributeDescription), Asn1String(attributeValue)) =>
+            EqualityMatchFilter(attributeDescription, attributeValue)
+        }
+      case _ => throw new Error(s"Unhandled Filter Type ${asn1ContextSpecific.tag}")
     }
   }
 
@@ -58,7 +69,7 @@ object LdapAsn1Decoder extends Config {
             Asn1Int(request.sizeLimit),
             Asn1Int(request.timeLimit),
             Asn1Boolean(request.typesOnly),
-            request.filter.map(encode).getOrElse(Asn1Null()),
+            request.filter.fold(Asn1Null.asInstanceOf[Asn1Object])(encode),
             Asn1Sequence(request.attributes.map(Asn1String(_)): _*)
           )
         )
@@ -69,14 +80,16 @@ object LdapAsn1Decoder extends Config {
           case _ => throw new Error(s"I don't support ${authChoice.getClass} authentication")
         }
         List(Asn1Number(msg.messageId.toByte), Asn1Application(0, Asn1Int(version), Asn1String(name), auth))
-      case request: Request =>
+      case _: Request =>
         throw new Error("Why are you trying to encode a request?, if you're working on the client you haven't yet coded this!")
       case BindResponse(LdapResult(opResult, matchedDN, diagnosticMessage, referral), serverSaslCreds) ⇒
         //TODO do something with referral and serverSaslCreds
         List(Asn1Number(msg.messageId.toByte), Asn1Application(1, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
-      case SearchResultEntry(id: UUID, dn: String, attributes: Map[String, Seq[String]]) ⇒
+      case SearchResultEntry(_: UUID, dn: String, attributes: Map[String, Seq[String]]) ⇒
         //Note that we ignore the uuid, the client doesn't know anything about it.
-        val attSequence = Asn1Sequence(attributes.toSeq.map(tuple => Asn1Sequence(Asn1String(tuple._1), Asn1Set(tuple._2.map(Asn1String(_)): _*))): _*)
+        val me = attributes.toSeq.map(tuple => Asn1Sequence(Asn1String(tuple._1), Asn1Set(tuple._2.map(Asn1String(_)): _*)))
+        //        val me = attributes.toSeq.map(tuple => Asn1Sequence(Asn1String(tuple._1), Asn1Sequence(tuple._2.map(Asn1String(_)): _*)))
+        val attSequence = Asn1Sequence(me: _*)
         List(Asn1Number(msg.messageId.toByte), Asn1Application(4, Asn1String(dn), attSequence))
       case SearchResultDone(LdapResult(opResult, matchedDN, diagnosticMessage, referral)) ⇒
         List(Asn1Number(msg.messageId.toByte), Asn1Application(5, Asn1Enumerated(opResult.code), Asn1String(matchedDN), Asn1String(diagnosticMessage)))
@@ -115,7 +128,7 @@ object LdapAsn1Decoder extends Config {
     val operation: MessageProtocolOp = applicationAsn1.tag match {
       case 0 ⇒ {
         values match {
-          case Seq(Asn1Number(version), Asn1String(name), Asn1ContextSpecific(tag, password)) ⇒
+          case Seq(Asn1Number(version), Asn1String(name), Asn1ContextSpecific(_, password)) ⇒
             BindRequest(version.toInt, name, LdapSimpleAuthentication(password.map(_.toChar).mkString))
         }
       }
@@ -139,7 +152,7 @@ object LdapAsn1Decoder extends Config {
         )
       }
       case 6 ⇒
-        ModifyRequest("")
+        ModifyRequest("", List.empty)
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 8 ⇒
         val attributes =
@@ -152,10 +165,10 @@ object LdapAsn1Decoder extends Config {
         DelRequest("")
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 12 ⇒
-        ModifyDNRequest("")
+        ModifyDNRequest("", "", true)
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 14 ⇒
-        CompareRequest("")
+        CompareRequest("", "", "")
         throw new Error(s"Unhandled Ldap: Operation ${applicationAsn1.tag}")
       case 16 ⇒
         AbandonRequest(messageId: Long)

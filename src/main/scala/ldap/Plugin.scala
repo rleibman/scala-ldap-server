@@ -9,6 +9,8 @@ trait Plugin {
   def terminate(): Future[Unit] = Future.successful {}
   def resultTypes(): Seq[LDAPResultType] = Seq.empty
   def supportedControls: Seq[ldap.SupportedControl] = Seq.empty
+  def supportedExtensions: Seq[ldap.SupportedExtension] = Seq.empty
+  def supportedFeatures: Seq[ldap.SupportedFeature] = Seq.empty
   def encodeControl(control: Control): Option[Asn1Object] = None
   def encode(msg: LdapMessage): Option[Asn1Object] = None
   def decodeApplication(applicationAsn1: Asn1Application): Option[MessageProtocolOp] = None

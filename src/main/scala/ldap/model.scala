@@ -78,7 +78,7 @@ case class LdapResult(opResult: LDAPResultType, matchedDN: String, diagnosticMes
 
 object SearchRequestScope extends Enumeration {
   type SearchRequestScope = Value
-  val baseObject, singleLevel, wholeSubtree = Value
+  val baseObject, singleLevel, wholeSubtree, children = Value
 }
 import SearchRequestScope._
 object DerefAliases extends Enumeration {
@@ -150,20 +150,29 @@ case class SearchRequest(
 ) extends Request
 
 case class SearchResultReference(str: String) extends Response
-case class ModifyRequest(str: String) extends Request
-case class ModifyResponse(str: String) extends Response
+
+case object ChangeType extends Enumeration {
+  type ChangeType = Value
+  val add, delete, replace = Value
+}
+import ChangeType._
+case class Change(changeType: ChangeType, attributeDescription: String, values: List[String])
+case class ModifyRequest(dn: String, changes: List[Change]) extends Request
+case class ModifyResponse(ldapResult: LdapResult) extends Response
 case class AddRequest(dn: String, userAttributes: Map[String, Seq[String]]) extends Request
 case class AddResponse(ldapResult: LdapResult) extends Response
-case class DelRequest(str: String) extends Request
-case class DelResponse(str: String) extends Response
-case class ModifyDNRequest(str: String) extends Request
-case class ModifyDNResponse(str: String) extends Response
-case class CompareRequest(str: String) extends Request
-case class CompareResponse(str: String) extends Response
+case class DelRequest(dn: String) extends Request
+case class DelResponse(ldapResult: LdapResult) extends Response
+case class ModifyDNRequest(dn: String, newDN: String, deleteOld: Boolean, newSuperiorDN: Option[String] = None) extends Request
+case class ModifyDNResponse(ldapResult: LdapResult) extends Response
+case class CompareRequest(dn: String, attributeDescription: String, attributeValue: String) extends Request
+case class CompareResponse(ldapResult: LdapResult) extends Response
 
 case class LDAPOID(value: String)
 
 case class SupportedControl(oid: LDAPOID, name: String)
+case class SupportedExtension(oid: LDAPOID, name: String)
+case class SupportedFeature(oid: LDAPOID, name: String)
 
 trait Control {
   val controlType: SupportedControl
@@ -171,13 +180,6 @@ trait Control {
 }
 
 case class LdapMessage(messageId: Long, protocolOp: MessageProtocolOp, controls: Seq[Control] = Seq.empty)
-
-//      "creatorsName" -> List(s"cn=Manager,${baseDN}"),
-//      "createTimestamp" -> List(date),
-//      "modifiersName" -> List(s"cn=Manager,${baseDN}"),
-//      "modifyTimestamp" -> List(date),
-//      "structuralObjectClass" -> List(structuralObjectClass),
-//      "subschemaSubentry" -> List("cn=Subschema")
 
 object Node {
   def operationAttributes = Set(
@@ -252,14 +254,95 @@ case class Node(
 ) {
   def operationalAttributes: Map[String, Seq[String]] = {
     Map(
-      "entryUUID" -> Seq(id),
       "creatorsName" -> Seq(creatorsName),
-      "createTimeStamp" -> Seq(createTimeStamp),
+      "createTimestamp" -> Seq(createTimeStamp),
       "modifiersName" -> Seq(modifiersName),
       "modifyTimestamp" -> Seq(modifyTimestamp),
       "structuralObjectClass" -> Seq(structuralObjectClass),
-      "governingStructureRule" -> Seq(governingStructureRule)
+      "governingStructureRule" -> Seq(governingStructureRule),
+      "objectClass" -> objectClass,
+      "attributeTypes" -> attributeTypes,
+      "matchingRules" -> matchingRules,
+      "distinguishedNameMatch" -> distinguishedNameMatch,
+      "ldapSyntaxes" -> ldapSyntaxes,
+      "matchingRuleUse" -> matchingRuleUse,
+      "subschemaSubentry" -> Seq(subschemaSubentry)
     )
   }
 }
 
+object AttributeTypeUsage extends Enumeration {
+  type AttributeTypeUsage = Value
+  val userApplications, directoryOperation, distributedOperation, dSAOperation = Value
+}
+
+import AttributeTypeUsage._
+
+case class AttributeType(
+    oid: LDAPOID,
+    names: List[String],
+    description: String,
+    syntax: Option[LDAPOID],
+    usage: Option[AttributeTypeUsage] = None,
+    isSingleValue: Boolean = false,
+    isCollective: Boolean = true,
+    isUserModifiable: Boolean = true,
+    isOperational: Boolean = false,
+    supertype: Option[String] = None,
+    substringMatching: Option[String] = None,
+    ordering: Option[String] = None,
+    equality: Option[String] = None,
+    isObsolete: Boolean = false
+) {
+  override def toString() = {
+    s"""
+( 
+${oid} 
+NAME ( '${names.mkString(" ")}' ) 
+DESC '${description}' 
+${if (isObsolete) "OBSOLETE" else ""} 
+${supertype.fold("")(a => s"SUP ${a}")}
+${equality.fold("")(a => s"EQUALITY ${a}")}
+${ordering.fold("")(a => s"ORDERING ${a}")}
+${substringMatching.fold("")(a => s"SUBSTR ${a}")}
+${syntax.fold("")(a => s"SYNTAX ${a.toString}")}
+${if (isSingleValue) "SINGLE-VALUE" else ""}
+${if (isCollective) "COLLECTIVE" else ""}
+${if (isUserModifiable) "" else "NO-USER-MODIFICATION"}
+${usage.fold("")(a => s"USAGE ${a.toString}")}
+)"""
+  }.replaceAll("{\n }+", " ")
+}
+
+object ObjectClassType extends Enumeration {
+  type ObjectClassType = Value
+  val ABSTRACT, STRUCTURAL, AUXILIARY = Value
+}
+
+import ObjectClassType._
+
+case class ObjectClass(
+    oid: LDAPOID,
+    names: List[String],
+    description: String,
+    objectClassType: Option[ObjectClassType] = None,
+    superclasses: List[String] = List.empty,
+    mandatory: List[String] = List.empty,
+    optional: List[String] = List.empty,
+    isObsolete: Boolean = false
+) {
+  override def toString() = {
+    s"""
+(
+${oid} 
+NAME ( '${names.mkString(" $ ")}' ) 
+DESC '${description}' 
+${if (isObsolete) "OBSOLETE" else ""}
+${if (superclasses.isEmpty) "" else s"SUP ( ${superclasses.mkString(" $ ")} )"}
+${objectClassType.fold("")(a => s"${a}")}
+${if (optional.isEmpty) "" else s"MAY ( ${optional.mkString(" $ ")} )"}
+${if (mandatory.isEmpty) "" else s"MUST ( ${mandatory.mkString(" $ ")} )"}
+)
+""".replaceAll("{\n }+", " ")
+  }
+}

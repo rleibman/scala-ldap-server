@@ -1,3 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
+	<logger name="asn1" level="DEBUG" />
+	<logger name="dao" level="DEBUG" />
+	<logger name="ldap" level="DEBUG" />
+	<logger name="ldap.client" level="DEBUG" />
+	<logger name="ldap.rfc4533" level="DEBUG" />
+	
+	<logger name="reactivemongo" level="WARN" />
+	<logger name="akka" level="INFO" />
+
+	<logger name="akka-spray" level="INFO" />
+	<logger name="nagira" level="INFO" />
+	<logger name="com.typesafe" level="INFO" />
+
+	<appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+	    <encoder>
+	      <pattern>%d{HH:mm:ss.SSS} %-5level %logger{100} - %msg%n</pattern>
+	    </encoder>
+  	</appender>
+    <root level="DEBUG">
+        <appender-ref ref="STDOUT"/>
+    </root>
+  
 </configuration>

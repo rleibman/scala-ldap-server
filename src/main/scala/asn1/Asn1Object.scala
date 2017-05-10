@@ -56,7 +56,7 @@ object Asn1Number {
   def apply(value: Long) = Asn1Long(value)
 
   def unapply(obj: Asn1Number[_]): Option[Long] = obj match {
-    case asn1Number: Asn1Zero => Some(0)
+    case _: Asn1Zero => Some(0)
     case asn1Number: Asn1Byte => Some(asn1Number.value.toLong)
     case asn1Number: Asn1Short => Some(asn1Number.value.toLong)
     case asn1Number: Asn1Int => Some(asn1Number.value.toLong)
@@ -84,9 +84,10 @@ case class Asn1ContextSpecific(tag: Int, value: Array[Byte]) extends Asn1Object 
   }
 }
 
-case class Asn1Null() extends Asn1Object
+case object Asn1Null extends Asn1Object
 
 case class Asn1String(value: String) extends Asn1Object
+case class Asn1BitString(value: String) extends Asn1Object
 case class Asn1ObjectDescriptor(value: String) extends Asn1Object
 
 case class Asn1Enumerated(value: Int) extends Asn1Object

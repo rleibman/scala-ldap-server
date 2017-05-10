@@ -26,6 +26,8 @@ import akka.util.ByteString
 import asn1.BEREncoder
 import dao.MongoDAO
 import java.time.format.DateTimeFormatter
+import scala.concurrent.duration._
+import akka.io.Tcp.ConnectionClosed
 
 class LdapHandler extends Actor with Config {
   import context.dispatcher
@@ -35,6 +37,8 @@ class LdapHandler extends Actor with Config {
   val log = Logging(context.system, getClass)
 
   override def postStop(): Unit = {
+    log.debug("postStop, closing the driver")
+    dao.connection.close()
     dao.driver.close()
   }
 
@@ -44,12 +48,12 @@ class LdapHandler extends Actor with Config {
       val operational = if (requestedAttributes.contains("+")) { //all operational
         node.operationalAttributes
       } else {
-        node.operationalAttributes.filter(a ⇒ requestedAttributes.contains(a._1))
+        node.operationalAttributes.filter(a ⇒ requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0))
       }
       val user = if (requestedAttributes.isEmpty) { //all of 'em
         node.userAttributes
       } else {
-        node.userAttributes.filter(a ⇒ requestedAttributes.contains(a._1))
+        node.userAttributes.filter(a ⇒ requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0))
       }
       user ++ operational
     }
@@ -66,9 +70,11 @@ class LdapHandler extends Actor with Config {
          *  the application of the Abandon operation is limited to uses where the client does not require an indication of its outcome.
          *
          */
+        //TODO this
         Future.successful { List() }
       case BindRequest(version, name, authChoice) ⇒
-        //TODO We need to actually do a login here, passing success always is not very secure :) 
+        //TODO We need to actually do a login here, passing success always is not very secure :)
+        //TODO version must be 3, or else bad!
         Future.successful { List(LdapMessage(msg.messageId, BindResponse(LdapResult(success, name, "Auth successful")))) }
       case UnbindRequest() ⇒
         Future.successful { List() }
@@ -82,27 +88,55 @@ class LdapHandler extends Actor with Config {
         //in a Search Request [RFC2251] SHALL signify a request for the return of all operational attributes.
         scope match {
           case SearchRequestScope.baseObject ⇒
+            //limits the search scope to the object itself
             val nodeFut = dao.getNode(dn)
             nodeFut.map(_.fold(List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful (no results found)")))))(node => List(
               LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(node.id), node.dn, filterAttributes(node, attributes))),
               LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, "Search successful, one result found")))
             )))
           case SearchRequestScope.singleLevel ⇒
-            val childrenFut = for {
+            //limits the search scope to the object's immediate children
+            val resultsFut = for {
               top ← dao.getNode(dn)
               children ← top.fold {
                 Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
               }(top => dao.getChildren(top))
             } yield (children)
-            childrenFut.failed.foreach(_.printStackTrace())
-            childrenFut.map(children ⇒ {
-              val res = children.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes))))
-              res :+ LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${children.size} results found")))
+            resultsFut.failed.foreach(_.printStackTrace())
+            resultsFut.map(nodes ⇒ {
+              val res = nodes.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes))))
+              res :+ LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${nodes.size} results found")))
             })
           case SearchRequestScope.wholeSubtree ⇒
-            Future.successful { List(LdapMessage(msg.messageId, SearchResultDone(LdapResult(operationsError, dn, "Not Yet implemented")))) }
+            // limits the search scope to the object and all its descendants 
+            val resultsFut = for {
+              top ← dao.getNode(dn)
+              children ← top.fold {
+                Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
+              }(top => dao.getSubtree(top))
+            } yield (top.toSeq ++ children)
+            resultsFut.failed.foreach(_.printStackTrace())
+            resultsFut.map(nodes ⇒ {
+              val res = nodes.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes))))
+              res :+ LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${nodes.size} results found")))
+            })
+          case SearchRequestScope.children ⇒
+            // limits the search scope to all of the descendants
+            // This is available only on servers which support the LDAP Subordinates Search Scope extension. 
+            // https://tools.ietf.org/html/draft-sermersheim-ldap-subordinate-scope-02
+            val resultsFut = for {
+              top ← dao.getNode(dn)
+              children ← top.fold {
+                Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
+              }(top => dao.getSubtree(top))
+            } yield (children)
+            resultsFut.failed.foreach(_.printStackTrace())
+            resultsFut.map(nodes ⇒ {
+              val res = nodes.map(child ⇒ LdapMessage(msg.messageId, SearchResultEntry(UUID.fromString(child.id), child.dn, filterAttributes(child, attributes))))
+              res :+ LdapMessage(msg.messageId, SearchResultDone(LdapResult(success, dn, s"Search successful, ${nodes.size} results found")))
+            })
         }
-      case ModifyRequest(str) =>
+      case ModifyRequest(str, changes) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
       case AddRequest(dn, attributes) =>
@@ -136,13 +170,13 @@ class LdapHandler extends Actor with Config {
             dao.update(saveMe).map(_ => LdapResult(success, dn, s"$dn saved"))
           }(_ => Future.successful(LdapResult(entryAlreadyExists, dn, s"$dn already exists")))
         } yield (List(LdapMessage(msg.messageId, AddResponse(result))))
-      case DelRequest(str) =>
+      case DelRequest(dn) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
-      case ModifyDNRequest(str) =>
+      case ModifyDNRequest(dn, newDN, deleteOld, newSuperiorDN) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
-      case CompareRequest(str) =>
+      case CompareRequest(dn, attributeDescription, attributeValue) =>
         //TODO write this
         throw new Error(s"${msg.protocolOp} not handled")
 
@@ -156,22 +190,23 @@ class LdapHandler extends Actor with Config {
   }
 
   import akka.pattern.pipe
-
+  case object Ack extends Event
   def receive = {
+    case data: ByteString =>
+      sender() ! Write(data)
     case Received(data) ⇒
-      val list = BEREncoder.decode(data)
+      val connection = sender()
+      val list = BEREncoder.decode(data).toSeq
       if (config.getBoolean("scala-ldap-server.logASN1")) {
         log.debug(s"request = ${list}")
       }
 
-      list.foreach { requestAsn1 =>
+      val fut = list.map { requestAsn1 =>
         val requestMsg = LdapAsn1Decoder.decode(requestAsn1)
         if (config.getBoolean("scala-ldap-server.logLDAPRequest")) {
           log.debug(s"requestMsg = ${requestMsg}")
         }
-        val responseMsgFut = operate(requestMsg)
-        //      val theSender = sender() //Need to capture the sender, cause sender() is a var
-        val fut = responseMsgFut.map { responseMsgs ⇒
+        operate(requestMsg).map { responseMsgs ⇒
           if (config.getBoolean("scala-ldap-server.logLDAPResponse")) {
             log.debug(s"responseMsgs = ${responseMsgs}")
           }
@@ -179,12 +214,14 @@ class LdapHandler extends Actor with Config {
           if (config.getBoolean("scala-ldap-server.logASN1")) {
             log.debug(s"response = ${responseAsn1}")
           }
-          val responseDatas = responseAsn1.map(BEREncoder.encode)
-          val responseData = responseDatas.foldLeft(ByteString())((a, b) ⇒ a ++ b)
-          Write(responseData)
+          responseAsn1.map(BEREncoder.encode)
         }
-        fut pipeTo sender()
       }
+      val fut2 = Future.sequence(fut)
+        .map(_.flatten.foldLeft(ByteString())((a, b) ⇒ a ++ b))
+        .map(data => {
+          connection ! Write(data)
+        })
       ()
     case msg: LdapMessage ⇒ {
       val fut = operate(msg)
@@ -195,6 +232,11 @@ class LdapHandler extends Actor with Config {
       fut pipeTo sender()
       ()
     }
-    case PeerClosed ⇒ context stop self
+    case PeerClosed ⇒
+      context stop self
+    case _: ConnectionClosed =>
+      context stop self
+    case CommandFailed(w: Write) =>
+      context stop self
   }
 }

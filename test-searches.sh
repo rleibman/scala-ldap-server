@@ -1,0 +1,18 @@
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "cn=Subschema" -s base -a always "(objectClass=subschema)" "createTimestamp" "modifyTimestamp"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "" -s base "(objectClass=*)" "namingContexts" "subschemaSubentry" "supportedLDAPVersion" "supportedSASLMechanisms" "supportedExtension" "supportedControl" "supportedFeatures" "vendorName" "vendorVersion" "+" "objectClass"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "" -s base "(objectClass=*)" "*"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "cn=Subschema" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "dc=gluenetworks,dc=com" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "cn=config" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "" -s base -a always "(objectClass=*)" "subschemaSubentry"
+ldapsearch -H ldap://ldap.gluenetworks.com:389 -x -D "cn=admin,dc=gluenetworks,dc=com" -W -b "cn=Subschema" -s base -a always "(objectClass=subschema)" "objectClasses" "attributeTypes" "ldapSyntaxes" "matchingRules" "matchingRuleUse" "createTimestamp" "modifyTimestamp"
+
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "cn=Subschema" -s base -a always "(objectClass=subschema)" "createTimestamp" "modifyTimestamp"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "" -s base "(objectClass=*)" "namingContexts" "subschemaSubentry" "supportedLDAPVersion" "supportedSASLMechanisms" "supportedExtension" "supportedControl" "supportedFeatures" "vendorName" "vendorVersion" "+" "objectClass"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "" -s base "(objectClass=*)" "*"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "cn=Subschema" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "dc=example,dc=com" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "cn=config" -s base -a always -z 1 "(objectClass=*)" "hasSubordinates" "objectClass"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "" -s base -a always "(objectClass=*)" "subschemaSubentry"
+ldapsearch -H ldap://localhost:1389 -x -D "cn=Manager,dc=example,dc=com" -W -b "cn=Subschema" -s base -a always "(objectClass=subschema)" "objectClasses" "attributeTypes" "ldapSyntaxes" "matchingRules" "matchingRuleUse" "createTimestamp" "modifyTimestamp"
+

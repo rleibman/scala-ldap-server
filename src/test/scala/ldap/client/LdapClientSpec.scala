@@ -22,7 +22,8 @@ class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLi
     authSearchUser = "cn=manager,dc=example,dc=com",
     authSearchPassword = "123456789",
     authSearchBase = "ou=people,dc=example,dc=com",
-    authSearchFilter = "")
+    authSearchFilter = ""
+  )
   "Valid authentication" should "authenticate validally" in {
     val clientFut = LdapClient(config)
     clientFut.map { client =>
@@ -35,7 +36,8 @@ class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLi
       baseObject = "",
       scope = SearchRequestScope.baseObject,
       filter = Option(PresentFilter("objectClass")),
-      attributes = Seq("subschemaSubentry"))
+      attributes = Seq("subschemaSubentry")
+    )
     for {
       client <- LdapClient(config)
       response <- client.fold(Future.successful(List[SearchResult]()))(client => client.sendSearchRequest(request))
@@ -54,7 +56,8 @@ class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLi
       baseObject = "",
       scope = SearchRequestScope.baseObject,
       filter = Option(PresentFilter("objectClass")),
-      attributes = Seq("*"))
+      attributes = Seq("*")
+    )
     for {
       client <- LdapClient(config)
       response <- client.fold(Future.successful(List[SearchResult]()))(client => client.sendSearchRequest(request))

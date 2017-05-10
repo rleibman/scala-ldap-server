@@ -82,7 +82,7 @@ OpenLDAP supports the following on a bare bones system
 ##### SupportedControl
 - 2.16.840.1.113730.3.4.18 Proxied Authorization v2 Request Control (RFC 4370)
 - 2.16.840.1.113730.3.4.2  ManageDsaIT Request Control (RFC 3296)
-- 1.3.6.1.4.1.4203.1.10.1  Subentries (rfc3672)
+- 1.3.6.1.4.1.4203.1.10.1  Subentries (RFC 3672)
 - 1.2.840.113556.1.4.319   Simple Paged Results Control (RFC 2696)
 - 1.2.826.0.1.3344810.2.3  Matched Values Request Control (RFC 3876)
 - 1.3.6.1.1.13.2           Post-Read Request and Response Controls (RFC 4527)
@@ -105,5 +105,7 @@ OpenLDAP supports the following on a bare bones system
 
 ### Anonymous Simple Authentication and Security Layer (SASL) Mechanism
 - [rfc4505](https://tools.ietf.org/html/rfc4505) Technical Specification Road Map 
+
+https://www.ldap.com/ldap-specifications-defined-in-rfcs
 
 I'm also making heavy use of the Apache Directory Studio to test the server, as well as of the openldap tools (ldapsearch, etc)
