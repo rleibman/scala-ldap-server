@@ -148,7 +148,7 @@ class LdapHandler extends Actor with Config {
           exists <- dao.getNode(dn)
           parent <- dao.getNode(parentDN)
           result <- exists.fold {
-            val saveMe = Node(
+            val saveMe = UserNode(
               id = "",
               dn = dn,
               userAttributes = Node.filterOutOperationalAttributes(attributes),

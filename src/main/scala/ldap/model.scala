@@ -18,6 +18,7 @@ package ldap
 
 import java.net.URI
 import java.util.UUID
+import buildinfo.BuildInfo
 
 case class LDAPResultType(code: Int)
 
@@ -210,7 +211,7 @@ object Node {
     objectClass: List[String] = List.empty[String]
   ): Node = {
     val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
-    apply(
+    UserNode(
       id = id,
       dn = dn,
       userAttributes = filterOutOperationalAttributes(userAttributes),
@@ -232,7 +233,21 @@ object Node {
   }
 }
 
-case class Node(
+sealed trait Node {
+  def id: String
+  def dn: String
+  def userAttributes: Map[String, Seq[String]]
+  def creatorsName: String
+  def createTimeStamp: String
+  def modifiersName: String
+  def modifyTimestamp: String
+  def structuralObjectClass: String
+  def objectClass: List[String]
+  def subschemaSubentry: String
+  def operationalAttributes: Map[String, Seq[String]]
+}
+
+case class UserNode(
     id: String,
     dn: String,
     userAttributes: Map[String, Seq[String]],
@@ -251,98 +266,98 @@ case class Node(
     ldapSyntaxes: List[String],
     matchingRuleUse: List[String],
     subschemaSubentry: String
-) {
-  def operationalAttributes: Map[String, Seq[String]] = {
-    Map(
-      "creatorsName" -> Seq(creatorsName),
-      "createTimestamp" -> Seq(createTimeStamp),
-      "modifiersName" -> Seq(modifiersName),
-      "modifyTimestamp" -> Seq(modifyTimestamp),
-      "structuralObjectClass" -> Seq(structuralObjectClass),
-      "governingStructureRule" -> Seq(governingStructureRule),
-      "objectClass" -> objectClass,
-      "attributeTypes" -> attributeTypes,
-      "matchingRules" -> matchingRules,
-      "distinguishedNameMatch" -> distinguishedNameMatch,
-      "ldapSyntaxes" -> ldapSyntaxes,
-      "matchingRuleUse" -> matchingRuleUse,
-      "subschemaSubentry" -> Seq(subschemaSubentry)
-    )
-  }
+) extends Node {
+  override val operationalAttributes: Map[String, Seq[String]] = Map(
+    "creatorsName" -> Seq(creatorsName),
+    "createTimestamp" -> Seq(createTimeStamp),
+    "modifiersName" -> Seq(modifiersName),
+    "modifyTimestamp" -> Seq(modifyTimestamp),
+    "structuralObjectClass" -> Seq(structuralObjectClass),
+    "governingStructureRule" -> Seq(governingStructureRule),
+    "objectClass" -> objectClass,
+    "attributeTypes" -> attributeTypes,
+    "matchingRules" -> matchingRules,
+    "distinguishedNameMatch" -> distinguishedNameMatch,
+    "ldapSyntaxes" -> ldapSyntaxes,
+    "matchingRuleUse" -> matchingRuleUse,
+    "subschemaSubentry" -> Seq(subschemaSubentry)
+  )
 }
 
-object AttributeTypeUsage extends Enumeration {
-  type AttributeTypeUsage = Value
-  val userApplications, directoryOperation, distributedOperation, dSAOperation = Value
+trait ServerStructuralNode extends Node with Config {
+  override val creatorsName = "roberto@leibman.net"
+  override val createTimeStamp = BuildInfo.builtAtString
+  override val modifiersName = "roberto@leibman.net"
+  override val modifyTimestamp = BuildInfo.builtAtString
+  override val subschemaSubentry = "cn=Subschema"
+  override val structuralObjectClass = "subentry"
+  override lazy val operationalAttributes: Map[String, Seq[String]] = Map(
+    "creatorsName" -> Seq(creatorsName),
+    "createTimestamp" -> Seq(createTimeStamp),
+    "modifiersName" -> Seq(modifiersName),
+    "modifyTimestamp" -> Seq(modifyTimestamp),
+    "structuralObjectClass" -> Seq(structuralObjectClass),
+    "objectClass" -> objectClass,
+    "subschemaSubentry" -> Seq(subschemaSubentry)
+  )
 }
 
-import AttributeTypeUsage._
-
-case class AttributeType(
-    oid: LDAPOID,
-    names: List[String],
-    description: String,
-    syntax: Option[LDAPOID],
-    usage: Option[AttributeTypeUsage] = None,
-    isSingleValue: Boolean = false,
-    isCollective: Boolean = true,
-    isUserModifiable: Boolean = true,
-    isOperational: Boolean = false,
-    supertype: Option[String] = None,
-    substringMatching: Option[String] = None,
-    ordering: Option[String] = None,
-    equality: Option[String] = None,
-    isObsolete: Boolean = false
-) {
-  override def toString() = {
-    s"""
-( 
-${oid} 
-NAME ( '${names.mkString(" ")}' ) 
-DESC '${description}' 
-${if (isObsolete) "OBSOLETE" else ""} 
-${supertype.fold("")(a => s"SUP ${a}")}
-${equality.fold("")(a => s"EQUALITY ${a}")}
-${ordering.fold("")(a => s"ORDERING ${a}")}
-${substringMatching.fold("")(a => s"SUBSTR ${a}")}
-${syntax.fold("")(a => s"SYNTAX ${a.toString}")}
-${if (isSingleValue) "SINGLE-VALUE" else ""}
-${if (isCollective) "COLLECTIVE" else ""}
-${if (isUserModifiable) "" else "NO-USER-MODIFICATION"}
-${usage.fold("")(a => s"USAGE ${a.toString}")}
-)"""
-  }.replaceAll("{\n }+", " ")
+case object RootNode extends ServerStructuralNode {
+  val supportedControls = List(
+    SupportedControl(LDAPOID("2.16.840.1.113730.3.4.18"), "Proxied Authorization v2 Request Control"), //  TODO (RFC 4370)
+    SupportedControl(LDAPOID("2.16.840.1.113730.3.4.2"), "ManageDsaIT Request Control"), //  TODO (RFC 3296)
+    SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.10.1"), "Subentries"), //  TODO (RFC 3672)
+    SupportedControl(LDAPOID("1.2.840.113556.1.4.319"), "Simple Paged Results Control"), //  TODO (RFC 2696)
+    SupportedControl(LDAPOID("1.2.826.0.1.3344810.2.3"), "Matched Values Request Control"), //  TODO (RFC 3876)
+    SupportedControl(LDAPOID("1.3.6.1.1.13.2"), "Post-Read Request and Response Controls"), //  TODO (RFC 4527)
+    SupportedControl(LDAPOID("1.3.6.1.1.13.1"), "Pre-Read Request and Response Controls"), //  TODO (RFC 4527)
+    SupportedControl(LDAPOID("1.3.6.1.1.12"), "Assertion Request Control"), //  TODO (RFC 4528)
+    SupportedControl(LDAPOID("1.3.6.1.4.1.1466.20037"), "StartTLS Request") //  TODO (RFC 4511)
+  )
+  val supportedExtensions = List(
+    SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.1"), "Password ModifY Request"), //  TODO (RFC 3062)
+    SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.3"), "\"Who Am I?\" Request"), //  TODO (RFC 4532)
+    SupportedExtension(LDAPOID("1.3.6.1.1.8"), "Cancel Request") //  TODO (RFC 3909)
+  )
+  val supportedFeatures = List(
+    SupportedFeature(LDAPOID("1.3.6.1.1.14"), "Modify-Increment."), //  TODO (RFC 4525)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.1"), "All Operational Attributes."), //  TODO (RFC 3673)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.2"), "OC AD Lists"), //  TODO (RFC 4529)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.3"), "True/False Filters"), //  TODO (RFC 4526)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.4"), "Language tags options"), //  TODO (RFC 3866)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.5"), "Language range options") //  TODO (RFC 3866)
+  )
+  override val id = "821f6b66-9ac7-487e-9dcc-db78d6aab654"
+  override val dn = ""
+  override val structuralObjectClass = "ScalaLDAProotDSE"
+  override val objectClass = List("top", "ScalaLDAProotDSE")
+  override val userAttributes = Map(
+    "objectClass" -> objectClass,
+    "vendorName" -> List("scala-ldap-server"),
+    "vendorVersion" -> List(buildinfo.BuildInfo.version),
+    "configContext" -> List("cn=config"),
+    "monitorContext" -> List("cn=Monitor"),
+    "subschemaSubentry" -> List(subschemaSubentry),
+    "namingContexts" -> List(BaseNode.dn),
+    "supportedControl" -> (supportedControls ++ plugins.flatMap(_.supportedControls)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedExtension" -> (supportedExtensions ++ plugins.flatMap(_.supportedExtensions)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedFeature" -> (supportedFeatures ++ plugins.flatMap(_.supportedFeatures)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedLDAPVersion" -> List("3"),
+    "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
+    "altServer" -> List(),
+    "entryDN" -> List("")
+  )
 }
 
-object ObjectClassType extends Enumeration {
-  type ObjectClassType = Value
-  val ABSTRACT, STRUCTURAL, AUXILIARY = Value
+case object BaseNode extends ServerStructuralNode {
+  override val id = "dba866a2-29ee-4c1c-9897-021835004040"
+  override val dn = baseDN
+  override val objectClass = List("top", "dcObject", "organization")
+  override val userAttributes = Map(
+    "dc" -> List("example"),
+    "o" -> List("example"),
+    "ou" -> List("example"),
+    "description" -> List("example")
+  )
 }
 
-import ObjectClassType._
-
-case class ObjectClass(
-    oid: LDAPOID,
-    names: List[String],
-    description: String,
-    objectClassType: Option[ObjectClassType] = None,
-    superclasses: List[String] = List.empty,
-    mandatory: List[String] = List.empty,
-    optional: List[String] = List.empty,
-    isObsolete: Boolean = false
-) {
-  override def toString() = {
-    s"""
-(
-${oid} 
-NAME ( '${names.mkString(" $ ")}' ) 
-DESC '${description}' 
-${if (isObsolete) "OBSOLETE" else ""}
-${if (superclasses.isEmpty) "" else s"SUP ( ${superclasses.mkString(" $ ")} )"}
-${objectClassType.fold("")(a => s"${a}")}
-${if (optional.isEmpty) "" else s"MAY ( ${optional.mkString(" $ ")} )"}
-${if (mandatory.isEmpty) "" else s"MUST ( ${mandatory.mkString(" $ ")} )"}
-)
-""".replaceAll("{\n }+", " ")
-  }
-}

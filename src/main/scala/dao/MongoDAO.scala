@@ -15,6 +15,7 @@ import reactivemongo.bson.BSONDocumentReader
 import reactivemongo.bson.BSONDocumentWriter
 import reactivemongo.bson.BSONString
 import reactivemongo.bson.BSONRegex
+import ldap._
 
 class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   import actorSystem.dispatcher
@@ -38,7 +39,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
             (bsonElement.name -> values)
           }).toMap
       }
-      Node(
+      UserNode(
         id = bson.getAs[String]("_id").get,
         dn = bson.getAs[String]("dn").get,
         userAttributes = userAttributes,
@@ -62,8 +63,8 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   }
 
   //  id: String, dn: String, userAttributes: Map[String, Seq[String]], children: Seq[String]
-  implicit val writer = new BSONDocumentWriter[Node] {
-    override def write(node: Node): BSONDocument = {
+  implicit val writer = new BSONDocumentWriter[UserNode] {
+    override def write(node: UserNode): BSONDocument = {
       BSONDocument(
         "_id" -> node.id,
         "dn" -> node.dn,
@@ -91,11 +92,17 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   }
 
   def getNode(dn: String): Future[Option[Node]] = {
-    val query = BSONDocument("dn" -> BSONRegex(dn, "i"))
-    for {
-      collection <- nodeCollectionFut
-      results <- collection.find(query).one[Node]
-    } yield (results)
+    dn match {
+      case "" => Future.successful(Some(RootNode))
+      case baseDN => Future.successful(Some(BaseNode))
+      case BaseNode.subschemaSubentry => Future.successful(Some(SchemaNode))
+      case _ =>
+        val query = BSONDocument("dn" -> BSONRegex(dn, "i"))
+        for {
+          collection <- nodeCollectionFut
+          results <- collection.find(query).one[Node]
+        } yield (results)
+    }
 
   }
 
@@ -116,17 +123,21 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
   }
 
   def update(node: Node): Future[Node] = {
-    //TODO protect that tree structure isn't affected by the update
-    val nodeWithId = if (node.id.isEmpty) {
-      val id = UUID.randomUUID().toString()
-      node.copy(id = id)
-    } else {
-      node
+    node match {
+      case userNode: UserNode =>
+        //TODO protect that tree structure isn't affected by the update
+        val nodeWithId = if (userNode.id.isEmpty) {
+          val id = UUID.randomUUID().toString()
+          userNode.copy(id = id)
+        } else {
+          userNode
+        }
+        for {
+          collection <- nodeCollectionFut
+          result <- collection.update(BSONDocument("dn" -> userNode.dn), nodeWithId, upsert = true)
+        } yield (nodeWithId)
+      case _ => throw new Error("You cannot update a non-user node")
     }
-    for {
-      collection <- nodeCollectionFut
-      result <- collection.update(BSONDocument("dn" -> node.dn), nodeWithId, upsert = true)
-    } yield (nodeWithId)
   }
 
   case class LdapTree()

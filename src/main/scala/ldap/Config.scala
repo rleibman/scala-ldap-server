@@ -15,7 +15,7 @@ trait Config {
     config
   }
   val baseDN = config.getString("scala-ldap-server.base")
-  val plugins: Seq[Plugin] = Seq(RFC4533Plugin)
+  val plugins: Seq[Plugin] = Seq(BaseSchemaPlugin, RFC4533Plugin)
   def defaultOperationalAttributes(structuralObjectClass: String) = {
     val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
     Map(
