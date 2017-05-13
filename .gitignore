@@ -18,10 +18,11 @@ project/plugins/project/
 
 .project
 .settings/
-/bin/
 .sbtserver
 .sbtserver.lock
 .cache-main
 .cache-tests
 .classpath
 application.conf
+bin/
+target/
