@@ -201,7 +201,10 @@ object LdapAsn1Decoder extends Config {
         | 11 //DelResponse 
         | 13 // ModifyDNResponse
         | 15 //CompareResponse
-        | 19 => // SearchResultReference
+        | 19 // SearchResultReference
+        | 24 // ExtendedResponse
+        | 25 // IntermediateResponse
+        =>
         throw new Error("Why are you trying to decode a response? If you're working on the client you haven't yet coded this!")
       case _ ⇒ //ExtendedRequest, ExtendedResponse, IntermediateResponse 23 | 24 | 25
         val res = plugins.foldLeft(Option[MessageProtocolOp](null))((acc, plugin) => acc.fold(plugin.decodeApplication(applicationAsn1))(_ => acc))

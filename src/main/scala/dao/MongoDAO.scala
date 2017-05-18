@@ -17,7 +17,7 @@ import reactivemongo.bson.BSONString
 import reactivemongo.bson.BSONRegex
 import ldap._
 
-class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
+class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
   import actorSystem.dispatcher
   import reactivemongo.api._
   val log = Logging(actorSystem, getClass)
@@ -91,7 +91,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
     }
   }
 
-  def getNode(dn: String): Future[Option[Node]] = {
+  override def getNode(dn: String): Future[Option[Node]] = {
     dn match {
       case "" => Future.successful(Some(RootNode))
       case baseDN => Future.successful(Some(BaseNode))
@@ -106,7 +106,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
 
   }
 
-  def getChildren(node: Node): Future[List[Node]] = {
+  override def getChildren(node: Node): Future[List[Node]] = {
     val query = BSONDocument("parentId" -> node.id)
     for {
       collection <- nodeCollectionFut
@@ -114,7 +114,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
     } yield (results)
   }
 
-  def getSubtree(node: Node): Future[List[Node]] = {
+  override def getSubtree(node: Node): Future[List[Node]] = {
     val query = BSONDocument("dn" -> BSONRegex(s".+${node.dn}", "i"))
     for {
       collection <- nodeCollectionFut
@@ -122,7 +122,7 @@ class MongoDAO(implicit actorSystem: ActorSystem) extends Config {
     } yield (results)
   }
 
-  def update(node: Node): Future[Node] = {
+  override def update(node: Node): Future[Node] = {
     node match {
       case userNode: UserNode =>
         //TODO protect that tree structure isn't affected by the update

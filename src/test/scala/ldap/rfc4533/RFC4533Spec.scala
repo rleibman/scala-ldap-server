@@ -8,10 +8,11 @@ import scala.concurrent.duration._
 import akka.testkit.ImplicitSender
 import akka.actor.actorRef2Scala
 import ldap._
+import java.net.InetSocketAddress
 
 class RFC4333Spec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with ImplicitSender with BeforeAndAfterAll {
-  val handler = system.actorOf(Props[LdapHandler])
-  override def afterAll {
+  val handler = system.actorOf(LdapHandler.props(None))
+  override def afterAll = {
     system.stop(handler)
     TestKit.shutdownActorSystem(system)
   }

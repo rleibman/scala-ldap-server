@@ -52,7 +52,7 @@ class LdapListener extends Actor with Config {
 
     case _@ Connected(remote, local) ⇒
       log.debug(s"Connected ${remote} to ${local}")
-      val handler = context.actorOf(Props[LdapHandler])
+      val handler = context.actorOf(LdapHandler.props(Some(remote)))
       val connection = sender()
       connection ! Register(handler)
   }
@@ -63,7 +63,7 @@ object LdapServer extends App with Config {
   implicit val system = ActorSystem("scala-ldap-server")
   import system.dispatcher
   val log = Logging(system, getClass)
-
+  val sessionManager = LdapSessionManager.start
   //TODO move these to different plugins as needed, else we have to implement them within the ldap server or ldap handler
 
   init()

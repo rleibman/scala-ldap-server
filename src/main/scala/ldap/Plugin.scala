@@ -4,6 +4,7 @@ import asn1.Asn1Object
 import asn1.Asn1Application
 import scala.concurrent.Future
 import better.files.File
+import dao.DAO
 
 trait Plugin {
   def initialize(config: com.typesafe.config.Config): Future[Unit] = Future.successful {}
@@ -16,7 +17,7 @@ trait Plugin {
   def encode(msg: LdapMessage): Option[Asn1Object] = None
   def decodeApplication(applicationAsn1: Asn1Application): Option[MessageProtocolOp] = None
   def decodeControl(controlAsn1: Asn1Object): Option[Control] = None
-  def operate(msg: LdapMessage, preResults: Seq[LdapMessage]): Seq[LdapMessage] = preResults
+  def operate(msg: LdapMessage, preResults: Seq[LdapMessage], dao: DAO): Future[Seq[LdapMessage]] = Future.successful(preResults)
   def ldapSyntaxes: Seq[LdapSyntax] = Seq.empty
   def matchingRules: Seq[MatchingRule] = Seq.empty
   def matchingRuleUses: Seq[MatchingRuleUse] = Seq.empty

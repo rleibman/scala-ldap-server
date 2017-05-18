@@ -64,6 +64,7 @@ libraryDependencies += "com.github.pathikrit" %% "better-files" % "3.0.0" withSo
 libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion  withSources()
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources()
 libraryDependencies += "com.typesafe.akka"  %% "akka-stream" % akkaVersion withSources()
+libraryDependencies += "com.typesafe.akka"  %% "akka-cluster-tools" % akkaVersion withSources()
 libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.3" withSources()
 libraryDependencies += "ch.qos.logback"        % "logback-classic"  % "1.2.3"
 libraryDependencies += "ch.qos.logback"        % "logback-core"  % "1.2.3"
@@ -120,7 +121,7 @@ scalacOptions ++= Seq(
 )
 
 Revolver.settings
-// Revolver.enableDebugging(port = 9999, suspend = true)
+Revolver.enableDebugging(port = 9999, suspend = true)
 
 fork in run := true
 

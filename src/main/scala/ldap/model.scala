@@ -169,6 +169,19 @@ case class ModifyDNResponse(ldapResult: LdapResult) extends Response
 case class CompareRequest(dn: String, attributeDescription: String, attributeValue: String) extends Request
 case class CompareResponse(ldapResult: LdapResult) extends Response
 
+trait ExtendedRequest extends Request {
+  def oid: LDAPOID
+}
+
+trait ExtendedResponse extends Response {
+  def ldapResult: LdapResult
+  def oid: Option[LDAPOID] = None
+}
+
+case class NoticeOfDisconnection(ldapResult: LdapResult) extends ExtendedResponse {
+  override val oid = Some(LDAPOID("1.3.6.1.4.1.1466.20036"))
+}
+
 case class LDAPOID(value: String)
 
 case class SupportedControl(oid: LDAPOID, name: String)
@@ -315,7 +328,6 @@ case object RootNode extends ServerStructuralNode {
     SupportedControl(LDAPOID("1.3.6.1.4.1.1466.20037"), "StartTLS Request") //  TODO (RFC 4511)
   )
   val supportedExtensions = List(
-    SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.1"), "Password ModifY Request"), //  TODO (RFC 3062)
     SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.3"), "\"Who Am I?\" Request"), //  TODO (RFC 4532)
     SupportedExtension(LDAPOID("1.3.6.1.1.8"), "Cancel Request") //  TODO (RFC 3909)
   )

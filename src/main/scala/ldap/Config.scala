@@ -4,6 +4,8 @@ import better.files.File
 import com.typesafe.config.ConfigFactory
 import ldap.rfc4533.RFC4533Plugin
 import java.time.format.DateTimeFormatter
+import ldap.rfc3062.RFC3062Plugin
+import akka.actor.ActorSystem
 
 trait Config {
   val config: com.typesafe.config.Config = {
@@ -15,7 +17,7 @@ trait Config {
     config
   }
   val baseDN = config.getString("scala-ldap-server.base")
-  val plugins: Seq[Plugin] = Seq(BaseSchemaPlugin, RFC4533Plugin)
+  def plugins: Seq[Plugin] = Seq(BaseSchemaPlugin, RFC4533Plugin, RFC3062Plugin)
   def defaultOperationalAttributes(structuralObjectClass: String) = {
     val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
     Map(

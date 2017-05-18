@@ -10,7 +10,7 @@ import akka.actor.Status
 import java.util.concurrent.ExecutionException
 
 class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with ImplicitSender with BeforeAndAfterAll {
-  val handler = system.actorOf(Props[LdapHandler])
+  val handler = system.actorOf(LdapHandler.props(None))
   override def afterAll {
     system.stop(handler)
     TestKit.shutdownActorSystem(system)

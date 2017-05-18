@@ -3,6 +3,7 @@ import ldap._
 import asn1._
 import scala.concurrent.Future
 import java.util.UUID
+import dao.DAO
 
 object RFC4533Plugin extends Plugin {
   val `e-syncRefreshRequired` = new LDAPResultType(4096)
@@ -140,7 +141,7 @@ object RFC4533Plugin extends Plugin {
     }
   }
 
-  override def operate(msg: LdapMessage, preResults: Seq[LdapMessage]): Seq[LdapMessage] = {
+  override def operate(msg: LdapMessage, preResults: Seq[LdapMessage], dao: DAO): Future[Seq[LdapMessage]] = Future.successful {
     val newCookie = Some(SyncCookie())
     if (msg.controls.exists(_.controlType == LDAPContentSynchronization)) {
       val res = preResults.map(result => {
