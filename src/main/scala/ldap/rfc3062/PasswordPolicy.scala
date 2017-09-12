@@ -9,7 +9,8 @@ trait PasswordPolicy {
 
 //TODO get parameters from config
 case object SimplePasswordPolicy extends PasswordPolicy with Config {
-  override def validatePassword(oldPassword: String, newPassword: String): List[String] = {
+  override def validatePassword(oldPassword: String,
+                                newPassword: String): List[String] = {
     List.empty
   }
 }

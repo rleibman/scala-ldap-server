@@ -25,20 +25,24 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
   // gets an instance of the driver
   // (creates an actor system)
   val driver = new MongoDriver
-  val connection = driver.connection(config.getStringList("scala-ldap-server.mongo.hosts").asScala)
+  val connection = driver.connection(
+    config.getStringList("scala-ldap-server.mongo.hosts").asScala)
   // Gets a reference to the database "plugin"
-  val dbFut = connection.database(config.getString("scala-ldap-server.mongo.dbName"))
+  val dbFut =
+    connection.database(config.getString("scala-ldap-server.mongo.dbName"))
   val nodeCollectionFut = dbFut.map(db => db("nodes"))
 
   implicit val reader = new BSONDocumentReader[Node] {
     override def read(bson: BSONDocument): Node = {
-      val userAttributes = bson.getAs[BSONDocument]("userAttributes").fold(Map[String, Seq[String]]()) {
-        doc ⇒
+      val userAttributes = bson
+        .getAs[BSONDocument]("userAttributes")
+        .fold(Map[String, Seq[String]]()) { doc ⇒
           (doc.elements.map { bsonElement ⇒
-            val values = bsonElement.value.asInstanceOf[BSONArray].as[List[String]]
+            val values =
+              bsonElement.value.asInstanceOf[BSONArray].as[List[String]]
             (bsonElement.name -> values)
           }).toMap
-      }
+        }
       UserNode(
         id = bson.getAs[String]("_id").get,
         dn = bson.getAs[String]("dn").get,
@@ -50,13 +54,21 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
         modifiersName = bson.getAs[String]("modifiersName").get,
         modifyTimestamp = bson.getAs[String]("modifyTimestamp").get,
         structuralObjectClass = bson.getAs[String]("structuralObjectClass").get,
-        governingStructureRule = bson.getAs[String]("governingStructureRule").get,
-        objectClass = bson.getAs[List[String]]("objectClass").getOrElse(List.empty),
-        attributeTypes = bson.getAs[List[String]]("attributeTypes").getOrElse(List.empty),
-        matchingRules = bson.getAs[List[String]]("matchingRules").getOrElse(List.empty),
-        distinguishedNameMatch = bson.getAs[List[String]]("distinguishedNameMatch").getOrElse(List.empty),
-        ldapSyntaxes = bson.getAs[List[String]]("ldapSyntaxes").getOrElse(List.empty),
-        matchingRuleUse = bson.getAs[List[String]]("matchingRuleUse").getOrElse(List.empty),
+        governingStructureRule =
+          bson.getAs[String]("governingStructureRule").get,
+        objectClass =
+          bson.getAs[List[String]]("objectClass").getOrElse(List.empty),
+        attributeTypes =
+          bson.getAs[List[String]]("attributeTypes").getOrElse(List.empty),
+        matchingRules =
+          bson.getAs[List[String]]("matchingRules").getOrElse(List.empty),
+        distinguishedNameMatch = bson
+          .getAs[List[String]]("distinguishedNameMatch")
+          .getOrElse(List.empty),
+        ldapSyntaxes =
+          bson.getAs[List[String]]("ldapSyntaxes").getOrElse(List.empty),
+        matchingRuleUse =
+          bson.getAs[List[String]]("matchingRuleUse").getOrElse(List.empty),
         subschemaSubentry = bson.getAs[String]("subschemaSubentry").get
       )
     }
@@ -93,8 +105,8 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
 
   override def getNode(dn: String): Future[Option[Node]] = {
     dn match {
-      case "" => Future.successful(Some(RootNode))
-      case baseDN => Future.successful(Some(BaseNode))
+      case ""                         => Future.successful(Some(RootNode))
+      case baseDN                     => Future.successful(Some(BaseNode))
       case BaseNode.subschemaSubentry => Future.successful(Some(SchemaNode))
       case _ =>
         val query = BSONDocument("dn" -> BSONRegex(dn, "i"))
@@ -110,7 +122,10 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
     val query = BSONDocument("parentId" -> node.id)
     for {
       collection <- nodeCollectionFut
-      results <- collection.find(query).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
+      results <- collection
+        .find(query)
+        .cursor[Node]()
+        .collect[List](-1, Cursor.FailOnError[List[Node]]())
     } yield (results)
   }
 
@@ -118,7 +133,10 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
     val query = BSONDocument("dn" -> BSONRegex(s".+${node.dn}", "i"))
     for {
       collection <- nodeCollectionFut
-      results <- collection.find(query).cursor[Node]().collect[List](-1, Cursor.FailOnError[List[Node]]())
+      results <- collection
+        .find(query)
+        .cursor[Node]()
+        .collect[List](-1, Cursor.FailOnError[List[Node]]())
     } yield (results)
   }
 
@@ -134,7 +152,9 @@ class MongoDAO(implicit val actorSystem: ActorSystem) extends DAO with Config {
         }
         for {
           collection <- nodeCollectionFut
-          result <- collection.update(BSONDocument("dn" -> userNode.dn), nodeWithId, upsert = true)
+          result <- collection.update(BSONDocument("dn" -> userNode.dn),
+                                      nodeWithId,
+                                      upsert = true)
         } yield (nodeWithId)
       case _ => throw new Error("You cannot update a non-user node")
     }

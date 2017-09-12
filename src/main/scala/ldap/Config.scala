@@ -9,7 +9,8 @@ import akka.actor.ActorSystem
 
 trait Config {
   val config: com.typesafe.config.Config = {
-    val confFileName = System.getProperty("application.conf", "./src/templates/application.conf")
+    val confFileName =
+      System.getProperty("application.conf", "./src/templates/application.conf")
     val confFile = File(confFileName)
     val config = ConfigFactory
       .parseFile(confFile.toJava)
@@ -19,7 +20,9 @@ trait Config {
   val baseDN = config.getString("scala-ldap-server.base")
   def plugins: Seq[Plugin] = Seq(BaseSchemaPlugin, RFC4533Plugin, RFC3062Plugin)
   def defaultOperationalAttributes(structuralObjectClass: String) = {
-    val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
+    val date = java.time.ZonedDateTime
+      .now()
+      .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
     Map(
       "creatorsName" -> List(s"cn=Manager,${baseDN}"),
       "createTimestamp" -> List(date),

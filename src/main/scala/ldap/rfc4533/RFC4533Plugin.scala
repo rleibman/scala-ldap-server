@@ -7,12 +7,20 @@ import dao.DAO
 
 object RFC4533Plugin extends Plugin {
   val `e-syncRefreshRequired` = new LDAPResultType(4096)
-  val LDAPContentSynchronization = ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.1"), "Sync Request Control")
-  val LDAPSyncState = ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.2"), "Sync State Control")
-  val LDAPContentSynchronizationDone = ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.3"), "Sync Done Control")
+  val LDAPContentSynchronization = ldap.SupportedControl(
+    LDAPOID("1.3.6.1.4.1.4203.1.9.1.1"),
+    "Sync Request Control")
+  val LDAPSyncState = ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.2"),
+                                            "Sync State Control")
+  val LDAPContentSynchronizationDone = ldap.SupportedControl(
+    LDAPOID("1.3.6.1.4.1.4203.1.9.1.3"),
+    "Sync Done Control")
 
   override def resultTypes(): Seq[LDAPResultType] = Seq(`e-syncRefreshRequired`)
-  override def supportedControls(): Seq[ldap.SupportedControl] = Seq(LDAPContentSynchronization, LDAPSyncState, LDAPContentSynchronizationDone)
+  override def supportedControls(): Seq[ldap.SupportedControl] =
+    Seq(LDAPContentSynchronization,
+        LDAPSyncState,
+        LDAPContentSynchronizationDone)
 
   override def initialize(config: com.typesafe.config.Config): Future[Unit] = {
     Future.successful {
@@ -89,29 +97,53 @@ object RFC4533Plugin extends Plugin {
     }
   }
 
-  override def decodeApplication(applicationAsn1: Asn1Application): Option[MessageProtocolOp] = {
+  override def decodeApplication(
+      applicationAsn1: Asn1Application): Option[MessageProtocolOp] = {
     import SyncInfoMessage._
     applicationAsn1.tag match {
       case 25 ⇒ //IntermediateResponse
         applicationAsn1.value.toSeq match {
-          case Seq(Asn1String(SyncInfoMessage.oid.value), details: Asn1Sequence) ⇒
+          case Seq(Asn1String(SyncInfoMessage.oid.value),
+                   details: Asn1Sequence) ⇒
             details.value.toSeq match {
               case Seq(Asn1Number(0), Asn1String(cookieStr)) =>
                 Some(SyncInfoMessage(Cookie(SyncCookie(cookieStr))))
               case Asn1Number(1) :: tail =>
-                val cookie = tail.collectFirst { case Asn1String(str) => SyncCookie(str) }
-                val refreshDone = tail.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
+                val cookie = tail.collectFirst {
+                  case Asn1String(str) => SyncCookie(str)
+                }
+                val refreshDone = tail
+                  .collectFirst { case Asn1Boolean(value) => value }
+                  .getOrElse(false)
                 Some(SyncInfoMessage(RefreshDelete(cookie, refreshDone)))
               case Asn1Number(2) :: tail =>
-                val cookie = tail.collectFirst { case Asn1String(str) => SyncCookie(str) }
-                val refreshDone = tail.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
+                val cookie = tail.collectFirst {
+                  case Asn1String(str) => SyncCookie(str)
+                }
+                val refreshDone = tail
+                  .collectFirst { case Asn1Boolean(value) => value }
+                  .getOrElse(false)
                 Some(SyncInfoMessage(RefreshPresent(cookie, refreshDone)))
               case Asn1Number(3) :: tail =>
-                val cookie = tail.collectFirst { case Asn1String(str) => SyncCookie(str) }
-                val refreshDeletes = tail.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
-                val syncUUIDs = tail.collect { case Asn1Set(set) => set.collect { case Asn1String(str) => UUID.fromString(str) } }.toSet.flatten
-                Some(SyncInfoMessage(SyncIdSet(cookie, refreshDeletes, syncUUIDs)))
-              case _ => throw new Error(s"Unknown Sync Info Message: ${details}")
+                val cookie = tail.collectFirst {
+                  case Asn1String(str) => SyncCookie(str)
+                }
+                val refreshDeletes = tail
+                  .collectFirst { case Asn1Boolean(value) => value }
+                  .getOrElse(false)
+                val syncUUIDs = tail
+                  .collect {
+                    case Asn1Set(set) =>
+                      set.collect {
+                        case Asn1String(str) => UUID.fromString(str)
+                      }
+                  }
+                  .toSet
+                  .flatten
+                Some(
+                  SyncInfoMessage(SyncIdSet(cookie, refreshDeletes, syncUUIDs)))
+              case _ =>
+                throw new Error(s"Unknown Sync Info Message: ${details}")
             }
           case _ => None //Don't know this dude
         }
@@ -120,34 +152,52 @@ object RFC4533Plugin extends Plugin {
   }
   override def decodeControl(controlAsn1: Asn1Object): Option[Control] = {
     controlAsn1 match {
-      case Seq(Asn1String(LDAPContentSynchronization.oid.value), Asn1Boolean(criticality), details: Asn1Sequence) =>
+      case Seq(Asn1String(LDAPContentSynchronization.oid.value),
+               Asn1Boolean(criticality),
+               details: Asn1Sequence) =>
         val seq = details.value.toSeq
-        val mode = seq.collectFirst { case Asn1Enumerated(mode) => SyncRequestControlMode.fromMode(mode) }.get
-        val cookie = seq.collectFirst { case Asn1String(str) => SyncCookie(str) }
-        val reloadHint = seq.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
+        val mode = seq.collectFirst {
+          case Asn1Enumerated(mode) => SyncRequestControlMode.fromMode(mode)
+        }.get
+        val cookie = seq.collectFirst {
+          case Asn1String(str) => SyncCookie(str)
+        }
+        val reloadHint =
+          seq.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
         Some(SyncRequestControl(criticality, mode, cookie, reloadHint))
       case Seq(Asn1String(LDAPSyncState.oid.value), details: Asn1Sequence) =>
         val seq = details.value.toSeq
-        val state = seq.collectFirst { case Asn1Enumerated(state) => SyncStateType.fromState(state) }.get
+        val state = seq.collectFirst {
+          case Asn1Enumerated(state) => SyncStateType.fromState(state)
+        }.get
         val syncUUID = seq.collectFirst { case Asn1String(str) => str }.get
-        val cookie = seq.reverse.collectFirst { case Asn1String(str) if (str != syncUUID) => SyncCookie(str) }
+        val cookie = seq.reverse.collectFirst {
+          case Asn1String(str) if (str != syncUUID) => SyncCookie(str)
+        }
         Some(SyncStateControl(state, UUID.fromString(syncUUID), cookie))
-      case Seq(Asn1String(LDAPContentSynchronizationDone.oid.value), details: Asn1Sequence) =>
+      case Seq(Asn1String(LDAPContentSynchronizationDone.oid.value),
+               details: Asn1Sequence) =>
         val seq = details.value.toSeq
-        val cookie = seq.collectFirst { case Asn1String(str) => SyncCookie(str) }
-        val refreshDeletes = seq.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
+        val cookie = seq.collectFirst {
+          case Asn1String(str) => SyncCookie(str)
+        }
+        val refreshDeletes =
+          seq.collectFirst { case Asn1Boolean(value) => value }.getOrElse(false)
         Some(SyncDoneControl(cookie, refreshDeletes))
       case _ => None //Don't know this dude
     }
   }
 
-  override def operate(msg: LdapMessage, preResults: Seq[LdapMessage], dao: DAO): Future[Seq[LdapMessage]] = Future.successful {
+  override def operate(msg: LdapMessage,
+                       preResults: Seq[LdapMessage],
+                       dao: DAO): Future[Seq[LdapMessage]] = Future.successful {
     val newCookie = Some(SyncCookie())
     if (msg.controls.exists(_.controlType == LDAPContentSynchronization)) {
       val res = preResults.map(result => {
         result.protocolOp match {
           case SearchResultEntry(id, nodeDN, filter) =>
-            val syncStateControl = SyncStateControl(SyncStateType.add, id, newCookie)
+            val syncStateControl =
+              SyncStateControl(SyncStateType.add, id, newCookie)
             result.copy(controls = result.controls :+ syncStateControl)
           case SearchResultDone(ldapResult) =>
             val syncDoneControl = SyncDoneControl(newCookie)

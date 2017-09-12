@@ -13,7 +13,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package ldap
 
 import java.net.URI
@@ -74,8 +74,13 @@ object LDAPResultType {
 trait MessageProtocolOp
 sealed trait LdapAuthentication
 case class LdapSimpleAuthentication(password: String) extends LdapAuthentication
-case class LdapSaslAuthentication(mechanism: String, credentials: Option[String] = None) extends LdapAuthentication
-case class LdapResult(opResult: LDAPResultType, matchedDN: String, diagnosticMessage: String, referral: List[URI] = List())
+case class LdapSaslAuthentication(mechanism: String,
+                                  credentials: Option[String] = None)
+    extends LdapAuthentication
+case class LdapResult(opResult: LDAPResultType,
+                      matchedDN: String,
+                      diagnosticMessage: String,
+                      referral: List[URI] = List())
 
 object SearchRequestScope extends Enumeration {
   type SearchRequestScope = Value
@@ -84,7 +89,8 @@ object SearchRequestScope extends Enumeration {
 import SearchRequestScope._
 object DerefAliases extends Enumeration {
   type DerefAliases = Value
-  val neverDerefAliases, derefInSearching, derefiFindingBaseObj, derefAlways = Value
+  val neverDerefAliases, derefInSearching, derefiFindingBaseObj, derefAlways =
+    Value
 }
 import DerefAliases._
 
@@ -107,7 +113,9 @@ sealed abstract class Filter(val filterType: Int)
 case class AndFilter(filters: Filter*) extends Filter(FilterType.and)
 case class OrFilter(filters: Filter*) extends Filter(FilterType.or)
 case class NotFilter(filter: Filter) extends Filter(FilterType.not)
-case class EqualityMatchFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.equalityMatch)
+case class EqualityMatchFilter(attributeDescription: String,
+                               attributeValue: String)
+    extends Filter(FilterType.equalityMatch)
 object SubstringValueType extends Enumeration {
   type SubstringValueType = Value
   val initial, any, `final` = Value
@@ -115,39 +123,59 @@ object SubstringValueType extends Enumeration {
 import SubstringValueType._
 import java.time.format.DateTimeFormatter
 
-case class SubstringValue(substringValueType: SubstringValueType, substring: String)
-case class SubstringsFilter(`type`: String, substrings: Seq[SubstringValue]) extends Filter(FilterType.substrings)
-case class GreaterOrEqualFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.greaterOrEqual)
-case class LessOrEqualFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.lessOrEqual)
+case class SubstringValue(substringValueType: SubstringValueType,
+                          substring: String)
+case class SubstringsFilter(`type`: String, substrings: Seq[SubstringValue])
+    extends Filter(FilterType.substrings)
+case class GreaterOrEqualFilter(attributeDescription: String,
+                                attributeValue: String)
+    extends Filter(FilterType.greaterOrEqual)
+case class LessOrEqualFilter(attributeDescription: String,
+                             attributeValue: String)
+    extends Filter(FilterType.lessOrEqual)
 case class PresentFilter(str: String) extends Filter(FilterType.present)
-case class AproxMatchFilter(attributeDescription: String, attributeValue: String) extends Filter(FilterType.approxMatch)
-case class ExtensibleMatchFilter(matchingRuleId: Option[String], attributeDescription: Option[String], assertionValue: String, dnAttributes: Boolean = false) extends Filter(FilterType.equalityMatch)
+case class AproxMatchFilter(attributeDescription: String,
+                            attributeValue: String)
+    extends Filter(FilterType.approxMatch)
+case class ExtensibleMatchFilter(matchingRuleId: Option[String],
+                                 attributeDescription: Option[String],
+                                 assertionValue: String,
+                                 dnAttributes: Boolean = false)
+    extends Filter(FilterType.equalityMatch)
 
 trait Request extends MessageProtocolOp
 trait Response extends MessageProtocolOp
 
 sealed trait SearchResult extends Response
-case class SearchResultEntry(uuid: UUID, dn: String, attributes: Map[String, Seq[String]]) extends SearchResult
+case class SearchResultEntry(uuid: UUID,
+                             dn: String,
+                             attributes: Map[String, Seq[String]])
+    extends SearchResult
 case class SearchResultDone(ldapResult: LdapResult) extends SearchResult
 case class SearchResultEntryReference() extends SearchResult
 
 case class UnbindRequest() extends Request
 case class AbandonRequest(messageId: Long) extends Request
-case class BindRequest(version: Int, name: String, authChoice: LdapAuthentication) extends Request
-case class BindResponse(ldapResult: LdapResult, serverSaslCreds: Option[String] = None) extends Response
+case class BindRequest(version: Int,
+                       name: String,
+                       authChoice: LdapAuthentication)
+    extends Request
+case class BindResponse(ldapResult: LdapResult,
+                        serverSaslCreds: Option[String] = None)
+    extends Response
 abstract class IntermediateRespose() extends Response {
   val oid: Option[LDAPOID]
 }
 
 case class SearchRequest(
-  baseObject: String,
-  scope: SearchRequestScope = SearchRequestScope.singleLevel,
-  derefAliases: DerefAliases = DerefAliases.derefAlways,
-  sizeLimit: Int = 0,
-  timeLimit: Int = 0,
-  typesOnly: Boolean = false,
-  filter: Option[Filter] = None,
-  attributes: Seq[String] = Seq.empty
+    baseObject: String,
+    scope: SearchRequestScope = SearchRequestScope.singleLevel,
+    derefAliases: DerefAliases = DerefAliases.derefAlways,
+    sizeLimit: Int = 0,
+    timeLimit: Int = 0,
+    typesOnly: Boolean = false,
+    filter: Option[Filter] = None,
+    attributes: Seq[String] = Seq.empty
 ) extends Request
 
 case class SearchResultReference(str: String) extends Response
@@ -157,16 +185,26 @@ case object ChangeType extends Enumeration {
   val add, delete, replace = Value
 }
 import ChangeType._
-case class Change(changeType: ChangeType, attributeDescription: String, values: List[String])
+case class Change(changeType: ChangeType,
+                  attributeDescription: String,
+                  values: List[String])
 case class ModifyRequest(dn: String, changes: List[Change]) extends Request
 case class ModifyResponse(ldapResult: LdapResult) extends Response
-case class AddRequest(dn: String, userAttributes: Map[String, Seq[String]]) extends Request
+case class AddRequest(dn: String, userAttributes: Map[String, Seq[String]])
+    extends Request
 case class AddResponse(ldapResult: LdapResult) extends Response
 case class DelRequest(dn: String) extends Request
 case class DelResponse(ldapResult: LdapResult) extends Response
-case class ModifyDNRequest(dn: String, newDN: String, deleteOld: Boolean, newSuperiorDN: Option[String] = None) extends Request
+case class ModifyDNRequest(dn: String,
+                           newDN: String,
+                           deleteOld: Boolean,
+                           newSuperiorDN: Option[String] = None)
+    extends Request
 case class ModifyDNResponse(ldapResult: LdapResult) extends Response
-case class CompareRequest(dn: String, attributeDescription: String, attributeValue: String) extends Request
+case class CompareRequest(dn: String,
+                          attributeDescription: String,
+                          attributeValue: String)
+    extends Request
 case class CompareResponse(ldapResult: LdapResult) extends Response
 
 trait ExtendedRequest extends Request {
@@ -178,7 +216,8 @@ trait ExtendedResponse extends Response {
   def oid: Option[LDAPOID] = None
 }
 
-case class NoticeOfDisconnection(ldapResult: LdapResult) extends ExtendedResponse {
+case class NoticeOfDisconnection(ldapResult: LdapResult)
+    extends ExtendedResponse {
   override val oid = Some(LDAPOID("1.3.6.1.4.1.1466.20036"))
 }
 
@@ -193,7 +232,9 @@ trait Control {
   val criticality: Boolean = false
 }
 
-case class LdapMessage(messageId: Long, protocolOp: MessageProtocolOp, controls: Seq[Control] = Seq.empty)
+case class LdapMessage(messageId: Long,
+                       protocolOp: MessageProtocolOp,
+                       controls: Seq[Control] = Seq.empty)
 
 object Node {
   def operationAttributes = Set(
@@ -215,15 +256,17 @@ object Node {
     attributes.filter(a => !operationAttributes.contains(a._1))
   }
   def apply(
-    id: String,
-    dn: String,
-    userAttributes: Map[String, Seq[String]],
-    parentId: Option[String],
-    baseDN: String,
-    structuralObjectClass: String = "subentry",
-    objectClass: List[String] = List.empty[String]
+      id: String,
+      dn: String,
+      userAttributes: Map[String, Seq[String]],
+      parentId: Option[String],
+      baseDN: String,
+      structuralObjectClass: String = "subentry",
+      objectClass: List[String] = List.empty[String]
   ): Node = {
-    val date = java.time.ZonedDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
+    val date = java.time.ZonedDateTime
+      .now()
+      .format(DateTimeFormatter.ofPattern("yyyyMMddHHmmssZ"))
     UserNode(
       id = id,
       dn = dn,
@@ -317,27 +360,40 @@ trait ServerStructuralNode extends Node with Config {
 
 case object RootNode extends ServerStructuralNode {
   val supportedControls = List(
-    SupportedControl(LDAPOID("2.16.840.1.113730.3.4.18"), "Proxied Authorization v2 Request Control"), //  TODO (RFC 4370)
-    SupportedControl(LDAPOID("2.16.840.1.113730.3.4.2"), "ManageDsaIT Request Control"), //  TODO (RFC 3296)
+    SupportedControl(
+      LDAPOID("2.16.840.1.113730.3.4.18"),
+      "Proxied Authorization v2 Request Control"), //  TODO (RFC 4370)
+    SupportedControl(LDAPOID("2.16.840.1.113730.3.4.2"),
+                     "ManageDsaIT Request Control"), //  TODO (RFC 3296)
     SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.10.1"), "Subentries"), //  TODO (RFC 3672)
-    SupportedControl(LDAPOID("1.2.840.113556.1.4.319"), "Simple Paged Results Control"), //  TODO (RFC 2696)
-    SupportedControl(LDAPOID("1.2.826.0.1.3344810.2.3"), "Matched Values Request Control"), //  TODO (RFC 3876)
-    SupportedControl(LDAPOID("1.3.6.1.1.13.2"), "Post-Read Request and Response Controls"), //  TODO (RFC 4527)
-    SupportedControl(LDAPOID("1.3.6.1.1.13.1"), "Pre-Read Request and Response Controls"), //  TODO (RFC 4527)
+    SupportedControl(LDAPOID("1.2.840.113556.1.4.319"),
+                     "Simple Paged Results Control"), //  TODO (RFC 2696)
+    SupportedControl(LDAPOID("1.2.826.0.1.3344810.2.3"),
+                     "Matched Values Request Control"), //  TODO (RFC 3876)
+    SupportedControl(
+      LDAPOID("1.3.6.1.1.13.2"),
+      "Post-Read Request and Response Controls"), //  TODO (RFC 4527)
+    SupportedControl(
+      LDAPOID("1.3.6.1.1.13.1"),
+      "Pre-Read Request and Response Controls"), //  TODO (RFC 4527)
     SupportedControl(LDAPOID("1.3.6.1.1.12"), "Assertion Request Control"), //  TODO (RFC 4528)
     SupportedControl(LDAPOID("1.3.6.1.4.1.1466.20037"), "StartTLS Request") //  TODO (RFC 4511)
   )
   val supportedExtensions = List(
-    SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.3"), "\"Who Am I?\" Request"), //  TODO (RFC 4532)
+    SupportedExtension(LDAPOID("1.3.6.1.4.1.4203.1.11.3"),
+                       "\"Who Am I?\" Request"), //  TODO (RFC 4532)
     SupportedExtension(LDAPOID("1.3.6.1.1.8"), "Cancel Request") //  TODO (RFC 3909)
   )
   val supportedFeatures = List(
     SupportedFeature(LDAPOID("1.3.6.1.1.14"), "Modify-Increment."), //  TODO (RFC 4525)
-    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.1"), "All Operational Attributes."), //  TODO (RFC 3673)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.1"),
+                     "All Operational Attributes."), //  TODO (RFC 3673)
     SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.2"), "OC AD Lists"), //  TODO (RFC 4529)
     SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.3"), "True/False Filters"), //  TODO (RFC 4526)
-    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.4"), "Language tags options"), //  TODO (RFC 3866)
-    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.5"), "Language range options") //  TODO (RFC 3866)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.4"),
+                     "Language tags options"), //  TODO (RFC 3866)
+    SupportedFeature(LDAPOID("1.3.6.1.4.1.4203.1.5.5"),
+                     "Language range options") //  TODO (RFC 3866)
   )
   override val id = "821f6b66-9ac7-487e-9dcc-db78d6aab654"
   override val dn = ""
@@ -351,9 +407,15 @@ case object RootNode extends ServerStructuralNode {
     "monitorContext" -> List("cn=Monitor"),
     "subschemaSubentry" -> List(subschemaSubentry),
     "namingContexts" -> List(BaseNode.dn),
-    "supportedControl" -> (supportedControls ++ plugins.flatMap(_.supportedControls)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
-    "supportedExtension" -> (supportedExtensions ++ plugins.flatMap(_.supportedExtensions)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
-    "supportedFeature" -> (supportedFeatures ++ plugins.flatMap(_.supportedFeatures)).map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedControl" -> (supportedControls ++ plugins.flatMap(
+      _.supportedControls))
+      .map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedExtension" -> (supportedExtensions ++ plugins.flatMap(
+      _.supportedExtensions))
+      .map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
+    "supportedFeature" -> (supportedFeatures ++ plugins.flatMap(
+      _.supportedFeatures))
+      .map(_.oid.value), //TODO this is a dynamic value, should it be saved? calculated? calculated AND saved? saved when a new plugin is instnalled?
     "supportedLDAPVersion" -> List("3"),
     "supportedSASLMechanisms" -> List("LOGIN", "PLAIN"),
     "altServer" -> List(),
@@ -372,4 +434,3 @@ case object BaseNode extends ServerStructuralNode {
     "description" -> List("example")
   )
 }
-

@@ -13,7 +13,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package ldap
 
 import scala.util.matching.Regex
@@ -21,10 +21,11 @@ import better.files._
 
 object AttributeTypeUsage extends Enumeration {
   type AttributeTypeUsage = Value
-  val userApplications, directoryOperation, distributedOperation, dSAOperation = Value
+  val userApplications, directoryOperation, distributedOperation, dSAOperation =
+    Value
 }
 
-//import 
+//import
 //Amazingly, someone else figured this out already, only in ruby :(
 // https://github.com/inscitiv/ruby-ldapserver/blob/master/lib/ldap/server/syntax.rb
 trait LdapRegex {
@@ -36,23 +37,33 @@ trait LdapRegex {
   private val _wOID = s"\\s*(?:${keyStr}|\\d[\\d.]+\\d)\\s*".r
   val OIDs = s"(${_wOID}|\\s+\\(${_wOID}(?:\\$$${wOID})*\\)\\s*)".r
   private val _qDescription = s"\\s*'${keyStr}'\\s*".r
-  val qDescriptions = s"(${_qDescription}|\\s*\\((?:${_qDescription})+\\)\\s*)".r
+  val qDescriptions =
+    s"(${_qDescription}|\\s*\\((?:${_qDescription})+\\)\\s*)".r
   val qDString = s"\\s*'(.*?)'\\s*".r
   val nOIDLen = s"(\\d[\\d.]+\\d)(?:\\{(\\d+)\\})?".r
-  val attributeUsage = s"(userApplications|directoryOperation|distributedOperation|dSAOperation)"
+  val attributeUsage =
+    s"(userApplications|directoryOperation|distributedOperation|dSAOperation)"
 }
 
 sealed trait LdapSyntaxResource
 
 object LdapSyntax extends LdapRegex {
-  override val regex = s"\\A\\s*\\(\\s*${numericOID}\\s*(?:DESC${qDString})?(?:X-BINARY-TRANSFER-REQUIRED\\s*'(TRUE|FALSE)'\\s*)?(?:X-NOT-HUMAN-READABLE\\s*'(TRUE|FALSE)'\\s*)?\\s*\\)\\s*\\z".r
+  override val regex =
+    s"\\A\\s*\\(\\s*${numericOID}\\s*(?:DESC${qDString})?(?:X-BINARY-TRANSFER-REQUIRED\\s*'(TRUE|FALSE)'\\s*)?(?:X-NOT-HUMAN-READABLE\\s*'(TRUE|FALSE)'\\s*)?\\s*\\)\\s*\\z".r
 
   def apply(str: String): Option[LdapSyntax] = {
     str match {
-      case regex(oid, description, xBinaryTransferRequired, xNotHumanReadable) =>
+      case regex(oid,
+                 description,
+                 xBinaryTransferRequired,
+                 xNotHumanReadable) =>
         val extensions = Map.empty[String, String] ++
-          (if (xBinaryTransferRequired == "TRUE") Map("X-BINARY-TRANSFER-REQUIRED" -> "TRUE") else Map()) ++
-          (if (xNotHumanReadable == "TRUE") Map("X-NOT-HUMAN-READABLE" -> "TRUE") else Map())
+          (if (xBinaryTransferRequired == "TRUE")
+             Map("X-BINARY-TRANSFER-REQUIRED" -> "TRUE")
+           else Map()) ++
+          (if (xNotHumanReadable == "TRUE")
+             Map("X-NOT-HUMAN-READABLE" -> "TRUE")
+           else Map())
 
         Option(LdapSyntax(LDAPOID(oid), Option(description), extensions))
       case _ => None
@@ -76,7 +87,8 @@ ${extensions.map(t => s"${t._1} '${t._2}'").mkString(" ")}
 }
 
 object MatchingRule extends LdapRegex {
-  override val regex = s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?SYNTAX\\s*${numericOID}\\s*\\)\\s*\\z".r
+  override val regex =
+    s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?SYNTAX\\s*${numericOID}\\s*\\)\\s*\\z".r
   def apply(str: String): Option[MatchingRule] = {
     str match {
       case regex(oid, names, description, isObsolete, syntax) =>
@@ -116,10 +128,16 @@ ${extensions.map(t => s"${t._1} '${t._2}'").mkString(" ")}
 }
 
 object MatchingRuleUse extends LdapRegex {
-  override val regex = s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESCk${qDString})?(OBSOLETE\\s*)?APPLIES\\s*${OIDs}\\s*\\)\\s*\\z".r
+  override val regex =
+    s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESCk${qDString})?(OBSOLETE\\s*)?APPLIES\\s*${OIDs}\\s*\\)\\s*\\z".r
   def apply(str: String): Option[MatchingRuleUse] = {
     str match {
-      case regex(oid, names, description, isObsolete, applies, discardMeImStupidAndRepeatedFromApplies) =>
+      case regex(oid,
+                 names,
+                 description,
+                 isObsolete,
+                 applies,
+                 discardMeImStupidAndRepeatedFromApplies) =>
         Option(
           MatchingRuleUse(
             oid = LDAPOID(oid),
@@ -158,43 +176,45 @@ ${extensions.map(t => s"${t._1} '${t._2}'").mkString(" ")}
 import AttributeTypeUsage._
 
 object AttributeType extends LdapRegex {
-  override val regex = s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?(?:SUP${wOID})?(?:EQUALITY${wOID})?(?:ORDERING${wOID})?(?:SUBSTR${wOID})?(?:SYNTAX\\s*${nOIDLen}\\s*)?(SINGLE-VALUE\\s*)?(COLLECTIVE\\s*)?(NO-USER-MODIFICATION\\s*)?(?:USAGE\\s*${attributeUsage})?\\s*\\)\\s*\\z".r
+  override val regex =
+    s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?(?:SUP${wOID})?(?:EQUALITY${wOID})?(?:ORDERING${wOID})?(?:SUBSTR${wOID})?(?:SYNTAX\\s*${nOIDLen}\\s*)?(SINGLE-VALUE\\s*)?(COLLECTIVE\\s*)?(NO-USER-MODIFICATION\\s*)?(?:USAGE\\s*${attributeUsage})?\\s*\\)\\s*\\z".r
   def apply(str: String): Option[AttributeType] = {
     //regex.findAllMatchIn(str).toList.size
     str match {
       case regex(
-        oid,
-        names,
-        description,
-        isObsolete,
-        supertype,
-        equality,
-        ordering,
-        substringMatching,
-        syntax,
-        syntaxLength,
-        isSingleValue,
-        isCollective,
-        isNotUserModifiable,
-        usage
-        ) =>
-
-        Option(AttributeType(
-          oid = LDAPOID(oid),
-          names = names.split(" ").toList,
-          description = Option(description),
-          syntax = Option(syntax).map(LDAPOID(_)),
-          syntaxLength = Option(syntaxLength).map(_.toInt),
-          usage = Option(usage).map(AttributeTypeUsage.withName(_)),
-          isSingleValue = Option(isSingleValue).fold(false)(_ => true),
-          isCollective = Option(isCollective).fold(false)(_ => true),
-          isUserModifiable = Option(isNotUserModifiable).fold(true)(_ => false), //Note it's backward,
-          supertype = Option(supertype),
-          substringMatching = Option(substringMatching),
-          ordering = Option(ordering),
-          equality = Option(equality),
-          isObsolete = Option(isObsolete).fold(false)(_ => true)
-        ))
+          oid,
+          names,
+          description,
+          isObsolete,
+          supertype,
+          equality,
+          ordering,
+          substringMatching,
+          syntax,
+          syntaxLength,
+          isSingleValue,
+          isCollective,
+          isNotUserModifiable,
+          usage
+          ) =>
+        Option(
+          AttributeType(
+            oid = LDAPOID(oid),
+            names = names.split(" ").toList,
+            description = Option(description),
+            syntax = Option(syntax).map(LDAPOID(_)),
+            syntaxLength = Option(syntaxLength).map(_.toInt),
+            usage = Option(usage).map(AttributeTypeUsage.withName(_)),
+            isSingleValue = Option(isSingleValue).fold(false)(_ => true),
+            isCollective = Option(isCollective).fold(false)(_ => true),
+            isUserModifiable = Option(isNotUserModifiable).fold(true)(_ =>
+              false), //Note it's backward,
+            supertype = Option(supertype),
+            substringMatching = Option(substringMatching),
+            ordering = Option(ordering),
+            equality = Option(equality),
+            isObsolete = Option(isObsolete).fold(false)(_ => true)
+          ))
       case _ => None
     }
   }
@@ -246,30 +266,37 @@ object ObjectClassType extends Enumeration {
 import ObjectClassType._
 
 object ObjectClass extends LdapRegex {
-  override val regex = s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?(?:SUP${OIDs})?(?:(ABSTRACT|STRUCTURAL|AUXILIARY)\\s*)?(?:MUST${OIDs})?(?:MAY${OIDs})?\\s*\\)\\s*\\z".r
+  override val regex =
+    s"\\A\\s*\\(\\s*${numericOID}\\s*(?:NAME${qDescriptions})?(?:DESC${qDString})?(OBSOLETE\\s*)?(?:SUP${OIDs})?(?:(ABSTRACT|STRUCTURAL|AUXILIARY)\\s*)?(?:MUST${OIDs})?(?:MAY${OIDs})?\\s*\\)\\s*\\z".r
   def apply(str: String): Option[ObjectClass] = {
     str match {
-      case regex(
-        oid,
-        names,
-        description,
-        isObsolete,
-        superclasses,
-        ignore1,
-        objectClassType,
-        mandatory,
-        ignore2,
-        optional,
-        ignore3) =>
+      case regex(oid,
+                 names,
+                 description,
+                 isObsolete,
+                 superclasses,
+                 ignore1,
+                 objectClassType,
+                 mandatory,
+                 ignore2,
+                 optional,
+                 ignore3) =>
         Option(
           ObjectClass(
             oid = LDAPOID(oid),
             names = names.split(" ").toList,
             description = Option(description),
-            objectClassType = Option(objectClassType).map(ObjectClassType.withName(_)),
-            superclasses = if (superclasses != null) superclasses.split(" $ ").toList else List.empty,
-            mandatory = if (mandatory != null) mandatory.split(" $ ").toList else List.empty,
-            optional = if (optional != null) optional.split(" $ ").toList else List.empty,
+            objectClassType =
+              Option(objectClassType).map(ObjectClassType.withName(_)),
+            superclasses =
+              if (superclasses != null) superclasses.split(" $ ").toList
+              else List.empty,
+            mandatory =
+              if (mandatory != null) mandatory.split(" $ ").toList
+              else List.empty,
+            optional =
+              if (optional != null) optional.split(" $ ").toList
+              else List.empty,
             isObsolete = Option(isObsolete).fold(false)(_ => true)
           )
         )
@@ -311,7 +338,8 @@ case object SchemaNode extends ServerStructuralNode {
   override val dn = "cn=Subschema"
   override val structuralObjectClass = "subentry"
   override val subschemaSubentry = "cn=Subschema"
-  override val objectClass = List("top", "subentry", "subschema", "extensibleObject")
+  override val objectClass =
+    List("top", "subentry", "subschema", "extensibleObject")
   override val userAttributes = Map(
     "objectClass" -> objectClass,
     "cn" -> List("Subschema"),
@@ -368,12 +396,25 @@ object BaseSchemaPlugin extends Plugin {
   )
 
   private def read = {
-    val all = schemas.map(schema => readSchemaFile(File.resource(s"schemas/$schema")))
-    all.foldLeft((Seq.empty[LdapSyntax], Seq.empty[AttributeType], Seq.empty[MatchingRule], Seq.empty[MatchingRuleUse], Seq.empty[ObjectClass])) {
-      (previous, tuple) => (previous._1 ++ tuple._1, previous._2 ++ tuple._2, previous._3 ++ tuple._3, previous._4 ++ tuple._4, previous._5 ++ tuple._5)
+    val all =
+      schemas.map(schema => readSchemaFile(File.resource(s"schemas/$schema")))
+    all.foldLeft(
+      (Seq.empty[LdapSyntax],
+       Seq.empty[AttributeType],
+       Seq.empty[MatchingRule],
+       Seq.empty[MatchingRuleUse],
+       Seq.empty[ObjectClass])) { (previous, tuple) =>
+      (previous._1 ++ tuple._1,
+       previous._2 ++ tuple._2,
+       previous._3 ++ tuple._3,
+       previous._4 ++ tuple._4,
+       previous._5 ++ tuple._5)
     }
   }
 
-  override val (ldapSyntaxes: Seq[LdapSyntax], attributeTypes: Seq[AttributeType], matchingRules: Seq[MatchingRule], matchingRuleUses: Seq[MatchingRuleUse], objectClasses: Seq[ObjectClass]) = read
+  override val (ldapSyntaxes: Seq[LdapSyntax],
+                attributeTypes: Seq[AttributeType],
+                matchingRules: Seq[MatchingRule],
+                matchingRuleUses: Seq[MatchingRuleUse],
+                objectClasses: Seq[ObjectClass]) = read
 }
-

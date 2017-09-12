@@ -2,29 +2,36 @@ package ldap.client
 
 import ldap._
 import asn1.BEREncoder
-import akka.actor.{ Actor, Props, ActorSystem }
-import akka.io.{ IO, Tcp }
+import akka.actor.{Actor, Props, ActorSystem}
+import akka.io.{IO, Tcp}
 import java.net.InetSocketAddress
 import scala.concurrent.Future
 import scala.concurrent.Promise
 import akka.actor.Stash
 import scala.concurrent.duration._
+
 case class LdapConfig(
-  host: String,
-  port: Int,
-  authSearchUser: String,
-  authSearchPassword: String,
-  authSearchBase: String,
-  authSearchFilter: String
+    host: String,
+    port: Int,
+    authSearchUser: String,
+    authSearchPassword: String,
+    authSearchBase: String,
+    authSearchFilter: String
 )
 
 object LdapClient {
   object TcpClient {
-    def props(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) =
+    def props(remote: InetSocketAddress,
+              promise: Promise[List[LdapMessage]],
+              checkReady: LdapMessage => Boolean) =
       Props(classOf[TcpClient], remote, promise, checkReady)
   }
   case object Timeout
-  class TcpClient(remote: InetSocketAddress, promise: Promise[List[LdapMessage]], checkReady: LdapMessage => Boolean) extends Actor with Stash {
+  class TcpClient(remote: InetSocketAddress,
+                  promise: Promise[List[LdapMessage]],
+                  checkReady: LdapMessage => Boolean)
+      extends Actor
+      with Stash {
     import Tcp._
     import context.system
     val acc = scala.collection.mutable.ListBuffer[LdapMessage]()
@@ -66,7 +73,8 @@ object LdapClient {
             ()
           case "close" =>
             connection ! Close
-            promise.failure(new Error(s"I really don't know how this was closed without receiving anything"))
+            promise.failure(new Error(
+              s"I really don't know how this was closed without receiving anything"))
             ()
           case a: ConnectionClosed =>
             context stop self
@@ -79,20 +87,25 @@ object LdapClient {
 
     }
   }
-  private def sendMessage(config: LdapConfig, msg: LdapMessage, checkReady: LdapMessage => Boolean)(implicit system: ActorSystem): Future[List[LdapMessage]] = {
+  private def sendMessage(config: LdapConfig,
+                          msg: LdapMessage,
+                          checkReady: LdapMessage => Boolean)(
+      implicit system: ActorSystem): Future[List[LdapMessage]] = {
     val promise = Promise[List[LdapMessage]]()
-    val client = system.actorOf(TcpClient.props(new InetSocketAddress(config.host, config.port), promise, checkReady))
+    val client = system.actorOf(
+      TcpClient.props(new InetSocketAddress(config.host, config.port),
+                      promise,
+                      checkReady))
     client ! msg
     promise.future
   }
 
   /**
-   * Authentication against an LDAP server is done in two separate steps:
-   * First, some "search credentials" are used to log into the LDAP server and perform a search for the directory entry
-   * matching a given user name. If exactly one user entry is found another LDAP bind operation is performed using the
-   * principal DN of the found user entry to validate the password.
-   */
-
+    * Authentication against an LDAP server is done in two separate steps:
+    * First, some "search credentials" are used to log into the LDAP server and perform a search for the directory entry
+    * matching a given user name. If exactly one user entry is found another LDAP bind operation is performed using the
+    * principal DN of the found user entry to validate the password.
+    */
   //case class SearchRequest(
   //  baseObject: String,
   //  scope: SearchRequestScope,
@@ -104,20 +117,26 @@ object LdapClient {
   //  attributes: Seq[String] = Seq()
   //) extends Request
   //case class BindRequest(version: Byte, name: String, authChoice: LdapAuthentication) extends Request
-  def apply(config: LdapConfig)(implicit system: ActorSystem): Future[Option[LdapClient]] = {
+  def apply(config: LdapConfig)(
+      implicit system: ActorSystem): Future[Option[LdapClient]] = {
     import system.dispatcher
     val fut = for {
       bindResponse <- {
-        val msg = LdapMessage(1, BindRequest(3, config.authSearchUser, LdapSimpleAuthentication(config.authSearchPassword)))
-        sendMessage(config, msg, { _.protocolOp.isInstanceOf[BindResponse] }).map(_.head.protocolOp.asInstanceOf[BindResponse])
+        val msg = LdapMessage(
+          1,
+          BindRequest(3,
+                      config.authSearchUser,
+                      LdapSimpleAuthentication(config.authSearchPassword)))
+        sendMessage(config, msg, { _.protocolOp.isInstanceOf[BindResponse] })
+          .map(_.head.protocolOp.asInstanceOf[BindResponse])
       }
       ldapClient <- bindResponse.ldapResult.opResult match {
         case LDAPResultType.success =>
           Future.successful(Some(new LdapClient(config)))
         case LDAPResultType.invalidCredentials |
-          LDAPResultType.inappropriateAuthentication |
-          LDAPResultType.authMethodNotSupported |
-          LDAPResultType.strongerAuthRequired =>
+            LDAPResultType.inappropriateAuthentication |
+            LDAPResultType.authMethodNotSupported |
+            LDAPResultType.strongerAuthRequired =>
           //I separate this because they're specific to binding
           println(bindResponse.ldapResult.diagnosticMessage)
           Future.successful(None)
@@ -141,7 +160,9 @@ class LdapClient(val config: LdapConfig)(implicit system: ActorSystem) {
   def sendSearchRequest(request: SearchRequest): Future[List[SearchResult]] = {
     val msgRequest = LdapMessage(counter, request)
     counter = counter + 1
-    val fut = LdapClient.sendMessage(config, msgRequest, { _.protocolOp.isInstanceOf[SearchResultDone] })
+    val fut = LdapClient.sendMessage(config, msgRequest, {
+      _.protocolOp.isInstanceOf[SearchResultDone]
+    })
     fut.map(msg => msg.map(_.protocolOp.asInstanceOf[SearchResult]))
   }
 }

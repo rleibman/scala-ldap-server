@@ -9,12 +9,15 @@ import akka.actor.Props
 import akka.event.Logging
 import akka.actor.Cancellable
 
-case class LdapSession(userDN: String, address: InetSocketAddress, lastHeartBeat: Long, cancellable: Cancellable) {
+case class LdapSession(userDN: String,
+                       address: InetSocketAddress,
+                       lastHeartBeat: Long,
+                       cancellable: Cancellable) {
   val started = System.currentTimeMillis
   //TODO: we may want to add long operations here, so that we use the abandon operation
   //TODO: I'm not quite sure, but I think SASL auth may need some state saved here
   //TODO: Another piece of state may be paged searches
-  //TODO: ???? BindStatus of Anonymous, Simple-auth Pending, Sasl pending or Authenticated 
+  //TODO: ???? BindStatus of Anonymous, Simple-auth Pending, Sasl pending or Authenticated
 }
 
 object LdapSessionManager extends Config {
@@ -23,7 +26,8 @@ object LdapSessionManager extends Config {
   val checkInterval = 1 minute
 
   trait Message
-  case class StartSession(userDN: String, address: InetSocketAddress) extends Message
+  case class StartSession(userDN: String, address: InetSocketAddress)
+      extends Message
   case class ExpireSession(address: InetSocketAddress)
   case class EndSession(address: InetSocketAddress)
   case class SessionHeartbeat(address: InetSocketAddress)
@@ -51,7 +55,9 @@ class LdapSessionManager extends Actor {
           userDN,
           address,
           System.currentTimeMillis(),
-          context.system.scheduler.scheduleOnce(sessionMaxAge, self, ExpireSession(address))
+          context.system.scheduler.scheduleOnce(sessionMaxAge,
+                                                self,
+                                                ExpireSession(address))
         )
       )
     case EndSession(address) =>
@@ -62,8 +68,11 @@ class LdapSessionManager extends Actor {
       val removed = sessions.remove(address.toString())
       removed.foreach { session =>
         session.cancellable.cancel()
-        val cancellable = context.system.scheduler.scheduleOnce(sessionMaxAge, self, ExpireSession(address))
-        sessions += (address.toString() -> session.copy(lastHeartBeat = System.currentTimeMillis(), cancellable = cancellable))
+        val cancellable = context.system.scheduler
+          .scheduleOnce(sessionMaxAge, self, ExpireSession(address))
+        sessions += (address.toString() -> session.copy(
+          lastHeartBeat = System.currentTimeMillis(),
+          cancellable = cancellable))
       }
     case GetSession(address) =>
       sender ! sessions.get(address.toString())

@@ -13,7 +13,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package asn1
 
 import java.nio.ByteOrder
@@ -73,20 +73,22 @@ object BEREncoder extends Asn1Encoder {
         //Do nothing
 
         case Asn1ContextSpecific(tag, value) ⇒
-          bb.putByte((0x80 //Class (context Specific)
-            | 0x00 //Primitive or constructed (primitive)
-            | tag //Tag (x)
-          ).toByte)
+          bb.putByte(
+            (0x80 //Class (context Specific)
+              | 0x00 //Primitive or constructed (primitive)
+              | tag //Tag (x)
+            ).toByte)
           putSize(value.length.toLong)
           bb.putBytes(value)
         case Asn1Application(tag, value @ _*) ⇒ {
           val newBB = new ByteStringBuilder
           value.foreach(loop(_, newBB))
           val bytes = newBB.result()
-          bb.putByte((0x40 //Class (application)
-            | { if (bytes.size > 1) 0x20 else 0x00 } //Primitive or constructed (constructed)
-            | tag //Tag (applicationTag)
-          ).toByte)
+          bb.putByte(
+            (0x40 //Class (application)
+              | { if (bytes.size > 1) 0x20 else 0x00 } //Primitive or constructed (constructed)
+              | tag //Tag (applicationTag)
+            ).toByte)
           if (bytes.size > 0) {
             putSize(bytes.size.toLong)
             bb.putBytes(bytes.toArray)
@@ -94,60 +96,68 @@ object BEREncoder extends Asn1Encoder {
           bb
         }
         case Asn1Int(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x02 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x02 //Tag (int)
+            ).toByte)
           putSize(4)
           bb.putInt(value)(ByteOrder.BIG_ENDIAN)
         case Asn1Boolean(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x01 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x01 //Tag (int)
+            ).toByte)
           putSize(1)
           bb.putByte(if (value) 1 else 0)
         case Asn1Long(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x02 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x02 //Tag (int)
+            ).toByte)
           putSize(8)
           bb.putLong(value)(ByteOrder.BIG_ENDIAN)
         case Asn1Short(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x02 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x02 //Tag (int)
+            ).toByte)
           putSize(2)
           bb.putShort(value.toShort)(ByteOrder.BIG_ENDIAN)
         case Asn1Zero() ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x02 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x02 //Tag (int)
+            ).toByte)
           bb
         case Asn1Byte(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x02 //Tag (int)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x02 //Tag (int)
+            ).toByte)
           putSize(1)
           bb.putByte(value)
           bb
         case Asn1Enumerated(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x0a //Tag (enumerated)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x0a //Tag (enumerated)
+            ).toByte)
           //Yeah, we could figure out how big this needs to be, but that's extra processing, and who needs that?
           putSize(4)
           bb.putInt(value)(ByteOrder.BIG_ENDIAN)
         case Asn1String(value) ⇒
-          bb.putByte((0x00 //Class (universal)
-            | 0x00 //Primitive or constructed (primitive)
-            | 0x04 //Tag (String)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x00 //Primitive or constructed (primitive)
+              | 0x04 //Tag (String)
+            ).toByte)
           putSize(value.size.toLong)
           bb.putBytes(value.toCharArray().map(_.toByte))
         case Asn1Sequence(value @ _*) ⇒
@@ -155,10 +165,11 @@ object BEREncoder extends Asn1Encoder {
           value.foreach(a ⇒ loop(a, newBB))
           val bytes = newBB.result()
 
-          bb.putByte((0x00 //Class (universal)
-            | 0x20 //Primitive or constructed (constructed)
-            | 0x10 //Tag (x)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x20 //Primitive or constructed (constructed)
+              | 0x10 //Tag (x)
+            ).toByte)
           putSize(bytes.size.toLong)
           bb.putBytes(bytes.toArray)
         case Asn1Set(value) ⇒
@@ -166,10 +177,11 @@ object BEREncoder extends Asn1Encoder {
           value.foreach(a ⇒ loop(a, newBB))
           val bytes = newBB.result()
 
-          bb.putByte((0x00 //Class (universal)
-            | 0x20 //Primitive or constructed (constructed)
-            | 0x11 //Tag (x)
-          ).toByte)
+          bb.putByte(
+            (0x00 //Class (universal)
+              | 0x20 //Primitive or constructed (constructed)
+              | 0x11 //Tag (x)
+            ).toByte)
           putSize(bytes.size.toLong)
           bb.putBytes(bytes.toArray)
         case Asn1BitString(_) =>
@@ -184,7 +196,8 @@ object BEREncoder extends Asn1Encoder {
   }
 
   def decode(str: ByteString): List[Asn1Object] = {
-    @tailrec def loop(str: ByteString, acc: List[Asn1Object]): List[Asn1Object] = {
+    @tailrec def loop(str: ByteString,
+                      acc: List[Asn1Object]): List[Asn1Object] = {
       if (str.isEmpty) {
         acc
       } else {
@@ -235,7 +248,8 @@ object BEREncoder extends Asn1Encoder {
 
         val res = identifierType match {
           case Asn1IdentifierType.application ⇒
-            Asn1Application(classTag, loop(iter.getByteString(length), List()): _*)
+            Asn1Application(classTag,
+                            loop(iter.getByteString(length), List()): _*)
           case Asn1IdentifierType.contextSpecific ⇒
             Asn1ContextSpecific(classTag, iter.getBytes(length))
           case Asn1IdentifierType.universal ⇒
@@ -307,7 +321,8 @@ object BEREncoder extends Asn1Encoder {
                   case 3 ⇒ BigInt(iter.getBytes(length)).toInt
                   case 4 ⇒ iter.getInt(ByteOrder.BIG_ENDIAN).toInt
                   case _ ⇒
-                    throw new Error(s"${length} length is not supported for enumerated values")
+                    throw new Error(
+                      s"${length} length is not supported for enumerated values")
                 }
                 Asn1Enumerated(num)
               case 0x0B ⇒ //Embedded PDV
@@ -321,7 +336,8 @@ object BEREncoder extends Asn1Encoder {
               case 0x0E | 0x0F ⇒ //WTF? These are reserved
                 //TODO check this
                 val value = iter.getBytes(length).map(_.toChar).mkString
-                println(s"Unhandled classTag 0x${classTag.toHexString}, with possible value '${value}', these are reserved values and it should not have gotten them")
+                println(
+                  s"Unhandled classTag 0x${classTag.toHexString}, with possible value '${value}', these are reserved values and it should not have gotten them")
                 Asn1Null
               case 0x10 ⇒
                 Asn1Sequence(loop(iter.getByteString(length), List()): _*)
@@ -370,7 +386,8 @@ object BEREncoder extends Asn1Encoder {
                 //TODO write this
                 throw new Error(s"Unhandled classTag 0x${classTag.toHexString}")
 
-              case _ ⇒ throw new Error(s"Unkown classTag 0x${classTag.toHexString}")
+              case _ ⇒
+                throw new Error(s"Unkown classTag 0x${classTag.toHexString}")
             }
         }
         (res, iter.toByteString)

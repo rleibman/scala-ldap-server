@@ -10,7 +10,11 @@ import akka.actor.actorRef2Scala
 import ldap._
 import java.net.InetSocketAddress
 
-class RFC4333Spec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with ImplicitSender with BeforeAndAfterAll {
+class RFC4333Spec
+    extends TestKit(ActorSystem("MySpec"))
+    with FlatSpecLike
+    with ImplicitSender
+    with BeforeAndAfterAll {
   val handler = system.actorOf(LdapHandler.props(None))
   override def afterAll = {
     system.stop(handler)
@@ -22,12 +26,20 @@ class RFC4333Spec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with 
 
     handler ! LdapMessage(
       123,
-      SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass")), List("subschemaSubentry")),
+      SearchRequest(objectName,
+                    SearchRequestScope.baseObject,
+                    DerefAliases.derefAlways,
+                    0,
+                    0,
+                    false,
+                    Some(PresentFilter("objectClass")),
+                    List("subschemaSubentry")),
       List(SyncRequestControl())
     )
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
     assert(response.size == 2)
-    val searchResultEntry = response(0).protocolOp.asInstanceOf[SearchResultEntry]
+    val searchResultEntry =
+      response(0).protocolOp.asInstanceOf[SearchResultEntry]
     assert(searchResultEntry.dn === objectName)
     val searchResultDone = response(1).protocolOp.asInstanceOf[SearchResultDone]
     assert(searchResultDone.ldapResult.opResult == LDAPResultType.success)

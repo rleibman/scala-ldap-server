@@ -13,17 +13,14 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package asn1
 
-sealed abstract class Asn1Object {
-}
+sealed abstract class Asn1Object {}
 
-case class Asn1Sequence(value: Asn1Object*) extends Asn1Object {
-}
+case class Asn1Sequence(value: Asn1Object*) extends Asn1Object {}
 
-case class Asn1Set(val value: Set[Asn1Object]) extends Asn1Object {
-}
+case class Asn1Set(val value: Set[Asn1Object]) extends Asn1Object {}
 
 object Asn1Set {
   val empty = Asn1Set()
@@ -56,25 +53,31 @@ object Asn1Number {
   def apply(value: Long) = Asn1Long(value)
 
   def unapply(obj: Asn1Number[_]): Option[Long] = obj match {
-    case _: Asn1Zero => Some(0)
-    case asn1Number: Asn1Byte => Some(asn1Number.value.toLong)
+    case _: Asn1Zero           => Some(0)
+    case asn1Number: Asn1Byte  => Some(asn1Number.value.toLong)
     case asn1Number: Asn1Short => Some(asn1Number.value.toLong)
-    case asn1Number: Asn1Int => Some(asn1Number.value.toLong)
-    case asn1Number: Asn1Long => Some(asn1Number.value.toLong)
+    case asn1Number: Asn1Int   => Some(asn1Number.value.toLong)
+    case asn1Number: Asn1Long  => Some(asn1Number.value.toLong)
   }
 }
 case class Asn1Zero() extends Asn1Number[java.lang.Byte] {
   override val value = 0.toByte
 }
-case class Asn1Byte(override val value: java.lang.Byte) extends Asn1Number[java.lang.Byte]
-case class Asn1Int(override val value: java.lang.Integer) extends Asn1Number[java.lang.Integer]
-case class Asn1Short(override val value: java.lang.Short) extends Asn1Number[java.lang.Short]
-case class Asn1Long(override val value: java.lang.Long) extends Asn1Number[java.lang.Long]
+case class Asn1Byte(override val value: java.lang.Byte)
+    extends Asn1Number[java.lang.Byte]
+case class Asn1Int(override val value: java.lang.Integer)
+    extends Asn1Number[java.lang.Integer]
+case class Asn1Short(override val value: java.lang.Short)
+    extends Asn1Number[java.lang.Short]
+case class Asn1Long(override val value: java.lang.Long)
+    extends Asn1Number[java.lang.Long]
 
 case class Asn1Double(val value: Double) extends Asn1Object
 
-case class Asn1ContextSpecific(tag: Int, value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+case class Asn1ContextSpecific(tag: Int, value: Array[Byte])
+    extends Asn1Object {
+  override def toString =
+    s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
   override def equals(obj: Any) = {
     if (!obj.isInstanceOf[Asn1ContextSpecific]) {
       false
@@ -94,21 +97,24 @@ case class Asn1Enumerated(value: Int) extends Asn1Object
 case class Asn1EmbeddedPDV(value: Array[Byte]) extends Asn1Object
 
 object Asn1Enumerated {
-  def apply[T <: Enumeration#Value](value: T): Asn1Enumerated = Asn1Enumerated(value.id.toInt)
+  def apply[T <: Enumeration#Value](value: T): Asn1Enumerated =
+    Asn1Enumerated(value.id.toInt)
 }
 
 case class Asn1ObjectIdentifier(value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+  override def toString =
+    s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
 }
 case class Asn1RelativeOID(value: Array[Byte]) extends Asn1Object {
-  override def toString = s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+  override def toString =
+    s"Asn1ObjectIdentifier(${value.map(_.toInt.toHexString).mkString(", 0x")})"
 }
 
 case class Asn1External(
-  directReference: Option[String] = None,
-  indirectReference: Option[String] = None,
-  dataValueDescriptor: Option[String] = None,
-  encoding: Option[String] = None
+    directReference: Option[String] = None,
+    indirectReference: Option[String] = None,
+    dataValueDescriptor: Option[String] = None,
+    encoding: Option[String] = None
 ) extends Asn1Object
 
 case class Asn1Application(tag: Int, value: Asn1Object*) extends Asn1Object

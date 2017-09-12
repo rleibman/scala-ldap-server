@@ -6,12 +6,20 @@ object SyncInfoMessage {
   val oid = LDAPOID("1.3.6.1.4.1.4203.1.9.1.4")
   sealed abstract trait SyncInfoValue
   case class Cookie(newCookie: SyncCookie) extends SyncInfoValue
-  case class RefreshDelete(newCookie: Option[SyncCookie], refreshDone: Boolean = true) extends SyncInfoValue
-  case class RefreshPresent(newCookie: Option[SyncCookie], refreshDone: Boolean = true) extends SyncInfoValue
-  case class SyncIdSet(newCookie: Option[SyncCookie], refreshDeletes: Boolean = true, syncUUIDs: Set[UUID] = Set.empty) extends SyncInfoValue
+  case class RefreshDelete(newCookie: Option[SyncCookie],
+                           refreshDone: Boolean = true)
+      extends SyncInfoValue
+  case class RefreshPresent(newCookie: Option[SyncCookie],
+                            refreshDone: Boolean = true)
+      extends SyncInfoValue
+  case class SyncIdSet(newCookie: Option[SyncCookie],
+                       refreshDeletes: Boolean = true,
+                       syncUUIDs: Set[UUID] = Set.empty)
+      extends SyncInfoValue
 }
 
-case class SyncInfoMessage(value: SyncInfoMessage.SyncInfoValue) extends IntermediateRespose {
+case class SyncInfoMessage(value: SyncInfoMessage.SyncInfoValue)
+    extends IntermediateRespose {
   override val oid = Some(SyncInfoMessage.oid)
 }
 
@@ -34,7 +42,11 @@ case class SyncCookie(value: String) {
   def time = value.toLong
 }
 
-case class SyncRequestControl(override val criticality: Boolean = false, modes: SyncRequestControlMode = refreshOnly, cookie: Option[SyncCookie] = None, reloadHint: Boolean = false) extends Control {
+case class SyncRequestControl(override val criticality: Boolean = false,
+                              modes: SyncRequestControlMode = refreshOnly,
+                              cookie: Option[SyncCookie] = None,
+                              reloadHint: Boolean = false)
+    extends Control {
   override val controlType = RFC4533Plugin.LDAPContentSynchronization
 }
 
@@ -55,13 +67,17 @@ object SyncStateType extends Enumeration {
 
 import SyncStateType._
 
-case class SyncStateControl(syncStateValue: SyncStateType, uuid: UUID, cookie: Option[SyncCookie] = None) extends Control {
+case class SyncStateControl(syncStateValue: SyncStateType,
+                            uuid: UUID,
+                            cookie: Option[SyncCookie] = None)
+    extends Control {
   override val criticality: Boolean = false
   override val controlType = RFC4533Plugin.LDAPContentSynchronization
 }
 
-case class SyncDoneControl(cookie: Option[SyncCookie] = None, refreshDeletes: Boolean = false) extends Control {
+case class SyncDoneControl(cookie: Option[SyncCookie] = None,
+                           refreshDeletes: Boolean = false)
+    extends Control {
   override val criticality: Boolean = false
   override val controlType = RFC4533Plugin.LDAPContentSynchronization
 }
-

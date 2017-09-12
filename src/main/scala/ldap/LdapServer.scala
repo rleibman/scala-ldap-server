@@ -13,7 +13,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ */
 package ldap
 
 import java.net.InetSocketAddress
@@ -31,8 +31,8 @@ import akka.io.IO
 import akka.io.Tcp
 import akka.io.Tcp.Bind
 import dao.MongoDAO
+import scala.language.postfixOps
 
-//TODO add session management, currently each operation is coming by itself, they need to be
 class LdapListener extends Actor with Config {
   import context.system
   import akka.io.Tcp._
@@ -44,13 +44,13 @@ class LdapListener extends Actor with Config {
   IO(Tcp) ! Bind(self, new InetSocketAddress(host, port))
 
   def receive = {
-    case _@ Bound(localAddress) ⇒
+    case _ @Bound(localAddress) ⇒
       log.info(s"bound to ${localAddress}")
     // do some logging or setup ...
 
     case CommandFailed(_: Bind) ⇒ context stop self
 
-    case _@ Connected(remote, local) ⇒
+    case _ @Connected(remote, local) ⇒
       log.debug(s"Connected ${remote} to ${local}")
       val handler = context.actorOf(LdapHandler.props(Some(remote)))
       val connection = sender()
@@ -64,7 +64,6 @@ object LdapServer extends App with Config {
   import system.dispatcher
   val log = Logging(system, getClass)
   val sessionManager = LdapSessionManager.start
-  //TODO move these to different plugins as needed, else we have to implement them within the ldap server or ldap handler
 
   init()
 
@@ -73,14 +72,41 @@ object LdapServer extends App with Config {
     val fut = for {
       firstLevel ← {
         val firstLevelNodes = List(
-          Node(id = "", dn = s"cn=Manager,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalRole", userAttributes = Map("objectClass" -> List("organizationalRole"), "cn" -> List("Manager"), "description" -> List("Directory Manager")), parentId = Some(BaseNode.id)),
-          Node(id = "", dn = s"ou=Groups,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalUnit", userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")), parentId = Some(BaseNode.id)),
-          Node(id = "", dn = s"ou=People,${baseDN}", baseDN = baseDN, structuralObjectClass = "organizationalUnit", userAttributes = Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")), parentId = Some(BaseNode.id))
+          Node(
+            id = "",
+            dn = s"cn=Manager,${baseDN}",
+            baseDN = baseDN,
+            structuralObjectClass = "organizationalRole",
+            userAttributes = Map("objectClass" -> List("organizationalRole"),
+                                 "cn" -> List("Manager"),
+                                 "description" -> List("Directory Manager")),
+            parentId = Some(BaseNode.id)
+          ),
+          Node(
+            id = "",
+            dn = s"ou=Groups,${baseDN}",
+            baseDN = baseDN,
+            structuralObjectClass = "organizationalUnit",
+            userAttributes = Map("objectClass" -> List("organizationalUnit"),
+                                 "ou" -> List("groups")),
+            parentId = Some(BaseNode.id)
+          ),
+          Node(
+            id = "",
+            dn = s"ou=People,${baseDN}",
+            baseDN = baseDN,
+            structuralObjectClass = "organizationalUnit",
+            userAttributes = Map("objectClass" -> List("organizationalUnit"),
+                                 "ou" -> List("people")),
+            parentId = Some(BaseNode.id)
+          )
         )
         Future.sequence(firstLevelNodes.map { node ⇒
           for {
             gotNode ← dao.getNode(node.dn)
-            updatedNode ← if (gotNode.isEmpty) { dao.update(node) } else { Future.successful(gotNode.get) }
+            updatedNode ← if (gotNode.isEmpty) { dao.update(node) } else {
+              Future.successful(gotNode.get)
+            }
           } yield (updatedNode)
         })
       }

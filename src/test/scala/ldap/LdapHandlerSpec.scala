@@ -9,46 +9,85 @@ import akka.testkit.ImplicitSender
 import akka.actor.Status
 import java.util.concurrent.ExecutionException
 
-class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike with ImplicitSender with BeforeAndAfterAll {
+class LdapHandlerSpec
+    extends TestKit(ActorSystem("MySpec"))
+    with FlatSpecLike
+    with ImplicitSender
+    with BeforeAndAfterAll {
   val handler = system.actorOf(LdapHandler.props(None))
   override def afterAll {
     system.stop(handler)
     TestKit.shutdownActorSystem(system)
   }
   "sending a proper bindrequest" should "return a bindresponse" in {
-    handler ! LdapMessage(123, BindRequest(3, "cn=Manager,dc=example,dc=com", LdapSimpleAuthentication("password")))
+    handler ! LdapMessage(123,
+                          BindRequest(3,
+                                      "cn=Manager,dc=example,dc=com",
+                                      LdapSimpleAuthentication("password")))
 
-    val response = expectMsg(List(LdapMessage(123, BindResponse(LdapResult(LDAPResultType.success, "cn=Manager,dc=example,dc=com", "Auth successful", List()), None))))
+    val response = expectMsg(
+      List(
+        LdapMessage(123,
+                    BindResponse(LdapResult(LDAPResultType.success,
+                                            "cn=Manager,dc=example,dc=com",
+                                            "Auth successful",
+                                            List()),
+                                 None))))
   }
 
   //case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAliases: DerefAliases, sizeLimit: Int, timeLimit: Int, typesOnly: Boolean, filter: Option[Filter] = None, attributes: Seq[String] = Seq()) extends MessageProtocolOp
 
   "sending a searchRequest for the base object" should "return a searchEntry and a searchDone" in {
     val objectName = ""
-    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass")), List("subschemaSubentry")))
+    handler ! LdapMessage(
+      123,
+      SearchRequest(objectName,
+                    SearchRequestScope.baseObject,
+                    DerefAliases.derefAlways,
+                    0,
+                    0,
+                    false,
+                    Some(PresentFilter("objectClass")),
+                    List("subschemaSubentry"))
+    )
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
     response.foreach(msg ⇒ assert(msg.messageId == 123))
     assert(response.size == 2)
-    val searchResultEntry = response(0).protocolOp.asInstanceOf[SearchResultEntry]
+    val searchResultEntry =
+      response(0).protocolOp.asInstanceOf[SearchResultEntry]
     assert(searchResultEntry.dn === objectName)
     val searchResultDone = response(1).protocolOp.asInstanceOf[SearchResultDone]
     assert(searchResultDone.ldapResult.opResult == LDAPResultType.success)
 
     assert(searchResultEntry.attributes.nonEmpty)
     assert(searchResultEntry.attributes("subschemaSubentry").nonEmpty)
-    assert(searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
+    assert(
+      searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
 
     println(response)
   }
 
   "sending a searchRequest for the schema object" should "return a searchEntry and a searchDone" in {
     val objectName = "cn=Subschema"
-    handler ! LdapMessage(123, SearchRequest(objectName, SearchRequestScope.baseObject, DerefAliases.derefAlways, 0, 0, false, Some(PresentFilter("objectClass=subschema")), List("createTimestamp", "modifyTimestamp")))
+    handler ! LdapMessage(
+      123,
+      SearchRequest(
+        objectName,
+        SearchRequestScope.baseObject,
+        DerefAliases.derefAlways,
+        0,
+        0,
+        false,
+        Some(PresentFilter("objectClass=subschema")),
+        List("createTimestamp", "modifyTimestamp")
+      )
+    )
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
 
     response.foreach(msg ⇒ assert(msg.messageId == 123))
     assert(response.size == 2)
-    val searchResultEntry = response(0).protocolOp.asInstanceOf[SearchResultEntry]
+    val searchResultEntry =
+      response(0).protocolOp.asInstanceOf[SearchResultEntry]
     assert(searchResultEntry.dn === objectName)
     val searchResultDone = response(1).protocolOp.asInstanceOf[SearchResultDone]
     assert(searchResultDone.ldapResult.opResult == LDAPResultType.success)
@@ -65,33 +104,37 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
 
   "sending a searchRequest for some base stuff" should "return a searchEntry and a searchDone" in {
     val objectName = ""
-    handler ! LdapMessage(123, SearchRequest(
-      objectName,
-      SearchRequestScope.baseObject,
-      DerefAliases.neverDerefAliases,
-      0,
-      0,
-      false,
-      Some(PresentFilter("objectClass")),
-      List(
-        "namingContexts",
-        "subschemaSubentry",
-        "supportedLDAPVersion",
-        "supportedSASLMechanisms",
-        "supportedExtension",
-        "supportedControl",
-        "supportedFeatures",
-        "vendorName",
-        "vendorVersion",
-        "+",
-        "objectClass"
+    handler ! LdapMessage(
+      123,
+      SearchRequest(
+        objectName,
+        SearchRequestScope.baseObject,
+        DerefAliases.neverDerefAliases,
+        0,
+        0,
+        false,
+        Some(PresentFilter("objectClass")),
+        List(
+          "namingContexts",
+          "subschemaSubentry",
+          "supportedLDAPVersion",
+          "supportedSASLMechanisms",
+          "supportedExtension",
+          "supportedControl",
+          "supportedFeatures",
+          "vendorName",
+          "vendorVersion",
+          "+",
+          "objectClass"
+        )
       )
-    ))
+    )
     val response = expectMsgClass(1 minute, classOf[List[LdapMessage]])
 
     response.foreach(msg ⇒ assert(msg.messageId == 123))
     assert(response.size == 2)
-    val searchResultEntry = response(0).protocolOp.asInstanceOf[SearchResultEntry]
+    val searchResultEntry =
+      response(0).protocolOp.asInstanceOf[SearchResultEntry]
     assert(searchResultEntry.dn === objectName)
     val searchResultDone = response(1).protocolOp.asInstanceOf[SearchResultDone]
     assert(searchResultDone.ldapResult.opResult == LDAPResultType.success)
@@ -101,11 +144,15 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
     assert(searchResultEntry.attributes("objectClass").size === 2)
     assert(searchResultEntry.attributes("objectClass").head.nonEmpty)
     assert(searchResultEntry.attributes("objectClass").contains("top"))
-    assert(searchResultEntry.attributes("objectClass").contains("ScalaLDAProotDSE"))
+    assert(
+      searchResultEntry.attributes("objectClass").contains("ScalaLDAProotDSE"))
 
     assert(searchResultEntry.attributes("structuralObjectClass").nonEmpty)
     assert(searchResultEntry.attributes("structuralObjectClass").head.nonEmpty)
-    assert(searchResultEntry.attributes("structuralObjectClass").head === "ScalaLDAProotDSE")
+    assert(
+      searchResultEntry
+        .attributes("structuralObjectClass")
+        .head === "ScalaLDAProotDSE")
 
     assert(searchResultEntry.attributes("configContext").nonEmpty)
     assert(searchResultEntry.attributes("configContext").head.nonEmpty)
@@ -117,7 +164,10 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
 
     assert(searchResultEntry.attributes("namingContexts").nonEmpty)
     assert(searchResultEntry.attributes("namingContexts").head.nonEmpty)
-    assert(searchResultEntry.attributes("namingContexts").head === "dc=example,dc=com")
+    assert(
+      searchResultEntry
+        .attributes("namingContexts")
+        .head === "dc=example,dc=com")
 
     assert(searchResultEntry.attributes.get("supportedControl").nonEmpty)
     //assert(searchResultEntry.attributes("supportedControl").head.nonEmpty) //There is 8 on a bare bones openldap
@@ -136,11 +186,13 @@ class LdapHandlerSpec extends TestKit(ActorSystem("MySpec")) with FlatSpecLike w
 
     assert(searchResultEntry.attributes("subschemaSubentry").nonEmpty)
     assert(searchResultEntry.attributes("subschemaSubentry").head.nonEmpty)
-    assert(searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
+    assert(
+      searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
 
     //openldap does not return these, though I think it should
     assert(searchResultEntry.attributes("supportedSASLMechanisms").nonEmpty)
-    assert(searchResultEntry.attributes("supportedSASLMechanisms").head.nonEmpty)
+    assert(
+      searchResultEntry.attributes("supportedSASLMechanisms").head.nonEmpty)
     assert(searchResultEntry.attributes("vendorName").nonEmpty)
     assert(searchResultEntry.attributes("vendorName").head.nonEmpty)
     assert(searchResultEntry.attributes("vendorVersion").nonEmpty)

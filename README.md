@@ -1,6 +1,8 @@
 scala-ldap-server
 ===================
 
+[![Known Vulnerabilities](https://snyk.io/test/github/rleibman/scala-ldap-server/badge.svg)](https://snyk.io/test/github/rleibman/scala-ldap-server)
+
 An ldap server developed in Scala. It uses akka
 
 ##Install

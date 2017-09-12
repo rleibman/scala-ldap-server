@@ -8,7 +8,11 @@ import org.scalatest.AsyncFlatSpecLike
 import ldap._
 import scala.concurrent.Future
 
-class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLike with ImplicitSender with BeforeAndAfterAll {
+class LdapClientSpec
+    extends TestKit(ActorSystem("MySpec"))
+    with AsyncFlatSpecLike
+    with ImplicitSender
+    with BeforeAndAfterAll {
   //  LdapServer.main(Array.empty)
 
   override def afterAll() = {
@@ -40,7 +44,8 @@ class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLi
     )
     for {
       client <- LdapClient(config)
-      response <- client.fold(Future.successful(List[SearchResult]()))(client => client.sendSearchRequest(request))
+      response <- client.fold(Future.successful(List[SearchResult]()))(client =>
+        client.sendSearchRequest(request))
       asserted <- {
         println(response.head)
         assert(client != null)
@@ -60,7 +65,8 @@ class LdapClientSpec extends TestKit(ActorSystem("MySpec")) with AsyncFlatSpecLi
     )
     for {
       client <- LdapClient(config)
-      response <- client.fold(Future.successful(List[SearchResult]()))(client => client.sendSearchRequest(request))
+      response <- client.fold(Future.successful(List[SearchResult]()))(client =>
+        client.sendSearchRequest(request))
       asserted <- {
         println(response.head)
         assert(client != null)
