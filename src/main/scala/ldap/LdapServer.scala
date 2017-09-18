@@ -1,19 +1,20 @@
 /*
- *   Copyright (C) 2016  Roberto Leibman
+ * Copyright (C) 2017  Roberto Leibman
  *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package ldap
 
 import java.net.InetSocketAddress
@@ -39,8 +40,10 @@ class LdapListener extends Actor with Config {
 
   val log = Logging(context.system, getClass)
 
-  val host = config.getString("scala-ldap-server.host")
-  val port = config.getInt("scala-ldap-server.port")
+  val host     = config.getString("scala-ldap-server.host")
+  val port     = config.getInt("scala-ldap-server.port")
+  val startTLS = config.getBoolean("scala-ldap-server.startTLS")
+
   IO(Tcp) ! Bind(self, new InetSocketAddress(host, port))
 
   def receive = {
@@ -52,7 +55,7 @@ class LdapListener extends Actor with Config {
 
     case _ @Connected(remote, local) ⇒
       log.debug(s"Connected ${remote} to ${local}")
-      val handler = context.actorOf(LdapHandler.props(Some(remote)))
+      val handler    = context.actorOf(LdapHandler.props(Some(remote)))
       val connection = sender()
       connection ! Register(handler)
   }
@@ -62,7 +65,7 @@ object LdapServer extends App with Config {
   // Create the actor system
   implicit val system = ActorSystem("scala-ldap-server")
   import system.dispatcher
-  val log = Logging(system, getClass)
+  val log            = Logging(system, getClass)
   val sessionManager = LdapSessionManager.start
 
   init()
@@ -78,7 +81,7 @@ object LdapServer extends App with Config {
             baseDN = baseDN,
             structuralObjectClass = "organizationalRole",
             userAttributes = Map("objectClass" -> List("organizationalRole"),
-                                 "cn" -> List("Manager"),
+                                 "cn"          -> List("Manager"),
                                  "description" -> List("Directory Manager")),
             parentId = Some(BaseNode.id)
           ),
@@ -87,8 +90,8 @@ object LdapServer extends App with Config {
             dn = s"ou=Groups,${baseDN}",
             baseDN = baseDN,
             structuralObjectClass = "organizationalUnit",
-            userAttributes = Map("objectClass" -> List("organizationalUnit"),
-                                 "ou" -> List("groups")),
+            userAttributes =
+              Map("objectClass" -> List("organizationalUnit"), "ou" -> List("groups")),
             parentId = Some(BaseNode.id)
           ),
           Node(
@@ -96,8 +99,8 @@ object LdapServer extends App with Config {
             dn = s"ou=People,${baseDN}",
             baseDN = baseDN,
             structuralObjectClass = "organizationalUnit",
-            userAttributes = Map("objectClass" -> List("organizationalUnit"),
-                                 "ou" -> List("people")),
+            userAttributes =
+              Map("objectClass" -> List("organizationalUnit"), "ou" -> List("people")),
             parentId = Some(BaseNode.id)
           )
         )
@@ -119,7 +122,6 @@ object LdapServer extends App with Config {
   // Create the 'ldap' actor
   val ldap = system.actorOf(Props[LdapListener], "ldap")
 
-  def shutdown() = {
+  def shutdown() =
     system.terminate()
-  }
 }

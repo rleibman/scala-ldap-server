@@ -1,19 +1,20 @@
 /*
- *   Copyright (C) 2016  Roberto Leibman
+ * Copyright (C) 2017  Roberto Leibman
  *
- *   This program is free software: you can redistribute it and/or modify
- *   it under the terms of the GNU General Public License as published by
- *   the Free Software Foundation, either version 3 of the License, or
- *   (at your option) any later version.
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
  *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- *   You should have received a copy of the GNU General Public License
- *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 package ldap
 
 import java.util.UUID
@@ -40,9 +41,7 @@ object LdapHandler {
   def props(client: Option[InetSocketAddress]) = Props(LdapHandler(client))
 }
 
-case class LdapHandler(client: Option[InetSocketAddress])
-    extends Actor
-    with Config {
+case class LdapHandler(client: Option[InetSocketAddress]) extends Actor with Config {
   import context.dispatcher
   val dao = new MongoDAO()(context.system)
   import LDAPResultType._
@@ -65,14 +64,14 @@ case class LdapHandler(client: Option[InetSocketAddress])
         if (requestedAttributes.contains("+")) { //all operational
           node.operationalAttributes
         } else {
-          node.operationalAttributes.filter(a ⇒
-            requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0))
+          node.operationalAttributes.filter(
+            a ⇒ requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0)
+          )
         }
       val user = if (requestedAttributes.isEmpty) { //all of 'em
         node.userAttributes
       } else {
-        node.userAttributes.filter(a ⇒
-          requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0))
+        node.userAttributes.filter(a ⇒ requestedAttributes.exists(_.compareToIgnoreCase(a._1) == 0))
       }
       user ++ operational
     }
@@ -80,8 +79,7 @@ case class LdapHandler(client: Option[InetSocketAddress])
     implicit lazy val timeout: Timeout = 30 seconds
 
     for {
-      session: Option[LdapSession] <- client.fold(
-        Future.successful(None: Option[LdapSession]))(
+      session: Option[LdapSession] <- client.fold(Future.successful(None: Option[LdapSession]))(
         client =>
           (sessionManager ? LdapSessionManager.GetSession(client))
             .mapTo[Option[LdapSession]]
@@ -106,18 +104,16 @@ case class LdapHandler(client: Option[InetSocketAddress])
             //TODO We need to actually do a login here, passing success always is not very secure :)
             //TODO version must be 3, or else bad!
             //TODO this begins a session
-            client.map(client =>
-              sessionManager ! LdapSessionManager.StartSession(name, client))
+            client.map(client => sessionManager ! LdapSessionManager.StartSession(name, client))
             Future.successful {
               List(
-                LdapMessage(
-                  msg.messageId,
-                  BindResponse(LdapResult(success, name, "Auth successful"))))
+                LdapMessage(msg.messageId,
+                            BindResponse(LdapResult(success, name, "Auth successful")))
+              )
             }
           case UnbindRequest() ⇒
             //TODO this ends a session
-            client.map(client =>
-              sessionManager ! LdapSessionManager.EndSession(client))
+            client.map(client => sessionManager ! LdapSessionManager.EndSession(client))
             Future.successful { List() }
           case SearchRequest(dn,
                              scope,
@@ -143,75 +139,71 @@ case class LdapHandler(client: Option[InetSocketAddress])
                   _.fold(
                     List(
                       LdapMessage(msg.messageId,
-                                  SearchResultDone(LdapResult(
-                                    success,
-                                    dn,
-                                    "Search successful (no results found)")))))(
+                                  SearchResultDone(
+                                    LdapResult(success, dn, "Search successful (no results found)")
+                                  ))
+                    )
+                  )(
                     node =>
                       List(
                         LdapMessage(msg.messageId,
-                                    SearchResultEntry(
-                                      UUID.fromString(node.id),
-                                      node.dn,
-                                      filterAttributes(node, attributes))),
-                        LdapMessage(
-                          msg.messageId,
-                          SearchResultDone(
-                            LdapResult(success,
-                                       dn,
-                                       "Search successful, one result found")))
-                    )))
+                                    SearchResultEntry(UUID.fromString(node.id),
+                                                      node.dn,
+                                                      filterAttributes(node, attributes))),
+                        LdapMessage(msg.messageId,
+                                    SearchResultDone(
+                                      LdapResult(success, dn, "Search successful, one result found")
+                                    ))
+                    )
+                  )
+                )
               case SearchRequestScope.singleLevel ⇒
                 //limits the search scope to the object's immediate children
                 val resultsFut = for {
                   top ← dao.getNode(dn)
                   children ← top.fold {
-                    Future.failed[List[Node]](
-                      new Error(s"No Parent present with dn=${dn}"))
+                    Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
                   }(top => dao.getChildren(top))
                 } yield (children)
                 resultsFut.failed.foreach(_.printStackTrace())
                 resultsFut.map(nodes ⇒ {
                   val res = nodes.map(
                     child ⇒
-                      LdapMessage(
-                        msg.messageId,
-                        SearchResultEntry(UUID.fromString(child.id),
-                                          child.dn,
-                                          filterAttributes(child, attributes))))
+                      LdapMessage(msg.messageId,
+                                  SearchResultEntry(UUID.fromString(child.id),
+                                                    child.dn,
+                                                    filterAttributes(child, attributes)))
+                  )
                   res :+ LdapMessage(
                     msg.messageId,
                     SearchResultDone(
-                      LdapResult(
-                        success,
-                        dn,
-                        s"Search successful, ${nodes.size} results found")))
+                      LdapResult(success, dn, s"Search successful, ${nodes.size} results found")
+                    )
+                  )
                 })
               case SearchRequestScope.wholeSubtree ⇒
                 // limits the search scope to the object and all its descendants
                 val resultsFut = for {
                   top ← dao.getNode(dn)
                   children ← top.fold {
-                    Future.failed[List[Node]](
-                      new Error(s"No Parent present with dn=${dn}"))
+                    Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
                   }(top => dao.getSubtree(top))
                 } yield (top.toSeq ++ children)
                 resultsFut.failed.foreach(_.printStackTrace())
                 resultsFut.map(nodes ⇒ {
                   val res = nodes.map(
                     child ⇒
-                      LdapMessage(
-                        msg.messageId,
-                        SearchResultEntry(UUID.fromString(child.id),
-                                          child.dn,
-                                          filterAttributes(child, attributes))))
+                      LdapMessage(msg.messageId,
+                                  SearchResultEntry(UUID.fromString(child.id),
+                                                    child.dn,
+                                                    filterAttributes(child, attributes)))
+                  )
                   res :+ LdapMessage(
                     msg.messageId,
                     SearchResultDone(
-                      LdapResult(
-                        success,
-                        dn,
-                        s"Search successful, ${nodes.size} results found")))
+                      LdapResult(success, dn, s"Search successful, ${nodes.size} results found")
+                    )
+                  )
                 })
               case SearchRequestScope.children ⇒
                 // limits the search scope to all of the descendants
@@ -220,26 +212,24 @@ case class LdapHandler(client: Option[InetSocketAddress])
                 val resultsFut = for {
                   top ← dao.getNode(dn)
                   children ← top.fold {
-                    Future.failed[List[Node]](
-                      new Error(s"No Parent present with dn=${dn}"))
+                    Future.failed[List[Node]](new Error(s"No Parent present with dn=${dn}"))
                   }(top => dao.getSubtree(top))
                 } yield (children)
                 resultsFut.failed.foreach(_.printStackTrace())
                 resultsFut.map(nodes ⇒ {
                   val res = nodes.map(
                     child ⇒
-                      LdapMessage(
-                        msg.messageId,
-                        SearchResultEntry(UUID.fromString(child.id),
-                                          child.dn,
-                                          filterAttributes(child, attributes))))
+                      LdapMessage(msg.messageId,
+                                  SearchResultEntry(UUID.fromString(child.id),
+                                                    child.dn,
+                                                    filterAttributes(child, attributes)))
+                  )
                   res :+ LdapMessage(
                     msg.messageId,
                     SearchResultDone(
-                      LdapResult(
-                        success,
-                        dn,
-                        s"Search successful, ${nodes.size} results found")))
+                      LdapResult(success, dn, s"Search successful, ${nodes.size} results found")
+                    )
+                  )
                 })
             }
           case ModifyRequest(str, changes) =>
@@ -261,18 +251,15 @@ case class LdapHandler(client: Option[InetSocketAddress])
                 val saveMe = UserNode(
                   id = "",
                   dn = dn,
-                  userAttributes =
-                    Node.filterOutOperationalAttributes(attributes),
+                  userAttributes = Node.filterOutOperationalAttributes(attributes),
                   creatorsName = attributes
                     .getOrElse("creatorsName", Seq(s"cn=Manager,${baseDN}"))
                     .head,
-                  createTimeStamp =
-                    attributes.getOrElse("createTimeStamp", Seq(date)).head,
+                  createTimeStamp = attributes.getOrElse("createTimeStamp", Seq(date)).head,
                   modifiersName = attributes
                     .getOrElse("modifiersName", Seq(s"cn=Manager,${baseDN}"))
                     .head,
-                  modifyTimestamp =
-                    attributes.getOrElse("modifyTimestamp", Seq(date)).head,
+                  modifyTimestamp = attributes.getOrElse("modifyTimestamp", Seq(date)).head,
                   structuralObjectClass = attributes
                     .getOrElse("structuralObjectClass", Seq("subentry"))
                     .head,
@@ -305,9 +292,7 @@ case class LdapHandler(client: Option[InetSocketAddress])
                 dao
                   .update(saveMe)
                   .map(_ => LdapResult(success, dn, s"$dn saved"))
-              }(_ =>
-                Future.successful(
-                  LdapResult(entryAlreadyExists, dn, s"$dn already exists")))
+              }(_ => Future.successful(LdapResult(entryAlreadyExists, dn, s"$dn already exists")))
             } yield (List(LdapMessage(msg.messageId, AddResponse(result))))
           case DelRequest(dn) =>
             //TODO auth
@@ -333,25 +318,26 @@ case class LdapHandler(client: Option[InetSocketAddress])
         }
         //We have some preliminary results, pass them through the plugins and give them a chance to add or modify the results.
         //Since everything happens in futures (each plugin can take some time to do it's stuff) the result is somewhat difficult to understand
-        plugins.foldLeft(returnMessagesFut)((z, plugin) =>
-          z.flatMap(preResults => plugin.operate(msg, preResults, dao)))
+        plugins.foldLeft(returnMessagesFut)(
+          (z, plugin) => z.flatMap(preResults => plugin.operate(msg, preResults, dao))
+        )
       }
     } yield {
       session.fold(returnMessages) { session =>
         if (returnMessages.isEmpty) {
           //if nothing handled the message, we need to terminate the session (https://tools.ietf.org/html/rfc4511#section-4.1.1)
-          client.map(client =>
-            sessionManager ! LdapSessionManager.EndSession(client))
+          client.map(client => sessionManager ! LdapSessionManager.EndSession(client))
           Seq(
-            LdapMessage(msg.messageId,
-                        NoticeOfDisconnection(
-                          LdapResult(LDAPResultType.protocolError,
-                                     "",
-                                     s"${msg.protocolOp} not handled"))))
+            LdapMessage(
+              msg.messageId,
+              NoticeOfDisconnection(
+                LdapResult(LDAPResultType.protocolError, "", s"${msg.protocolOp} not handled")
+              )
+            )
+          )
         } else {
           //NOTE it's ok to mark a heartbeat for a session which has already ended
-          client.map(client =>
-            sessionManager ! LdapSessionManager.SessionHeartbeat(client))
+          client.map(client => sessionManager ! LdapSessionManager.SessionHeartbeat(client))
           returnMessages
         }
       }
@@ -366,7 +352,7 @@ case class LdapHandler(client: Option[InetSocketAddress])
       sender() ! Write(data)
     case Received(data) ⇒
       val connection = sender()
-      val list = BEREncoder.decode(data).toSeq
+      val list       = BEREncoder.decode(data).toSeq
       if (config.getBoolean("scala-ldap-server.logASN1")) {
         log.debug(s"request = ${list}")
       }

@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2017  Roberto Leibman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package ldap.rfc4533
 import ldap._
 import asn1._
@@ -7,56 +24,52 @@ import dao.DAO
 
 object RFC4533Plugin extends Plugin {
   val `e-syncRefreshRequired` = new LDAPResultType(4096)
-  val LDAPContentSynchronization = ldap.SupportedControl(
-    LDAPOID("1.3.6.1.4.1.4203.1.9.1.1"),
-    "Sync Request Control")
-  val LDAPSyncState = ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.2"),
-                                            "Sync State Control")
-  val LDAPContentSynchronizationDone = ldap.SupportedControl(
-    LDAPOID("1.3.6.1.4.1.4203.1.9.1.3"),
-    "Sync Done Control")
+  val LDAPContentSynchronization =
+    ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.1"), "Sync Request Control")
+  val LDAPSyncState =
+    ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.2"), "Sync State Control")
+  val LDAPContentSynchronizationDone =
+    ldap.SupportedControl(LDAPOID("1.3.6.1.4.1.4203.1.9.1.3"), "Sync Done Control")
 
   override def resultTypes(): Seq[LDAPResultType] = Seq(`e-syncRefreshRequired`)
   override def supportedControls(): Seq[ldap.SupportedControl] =
-    Seq(LDAPContentSynchronization,
-        LDAPSyncState,
-        LDAPContentSynchronizationDone)
+    Seq(LDAPContentSynchronization, LDAPSyncState, LDAPContentSynchronizationDone)
 
-  override def initialize(config: com.typesafe.config.Config): Future[Unit] = {
+  override def initialize(config: com.typesafe.config.Config): Future[Unit] =
     Future.successful {
       if (config.hasPath("scala-ldap-server.syncrepl")) {
-        val syncrepl = config.getConfig("scala-ldap-server.syncrepl")
-        val replicaId = syncrepl.getString("rid")
-        val providerUri = syncrepl.getString("providerUri")
-        val syncType = syncrepl.getString("syncType") //refreshOnly or RefreshAndPersist
-        val interval = syncrepl.getString("interval")
-        val searchbase = syncrepl.getString("searchbase")
-        val filter = syncrepl.getString("filter")
-        val scope = syncrepl.getString("scope") //sub|one|base
-        val attrs = syncrepl.getStringList("attrs")
-        val attrsOnly = syncrepl.getString("attrsOnly")
-        val sizeLimit = syncrepl.getString("sizeLimit")
-        val timeLimit = syncrepl.getString("timeLimit")
-        val schemaChecking = syncrepl.getString("schemaiChecking") //on|off
-        val bindMethod = syncrepl.getString("bindMethod") //simple|sasl
-        val binddn = syncrepl.getString("binddn")
-        val saslmech = syncrepl.getString("saslmech")
-        val authcid = syncrepl.getString("authcid")
-        val authzid = syncrepl.getString("authzid")
-        val credentials = syncrepl.getString("credentials")
-        val realm = syncrepl.getString("realm")
-        val secprops = syncrepl.getStringList("secprops")
-        val startttls = syncrepl.getString("startttls") //yes|critical
-        val tls_cert = syncrepl.getString("tls_cert")
-        val tls_key = syncrepl.getString("tls_key")
-        val tls_cacert = syncrepl.getString("tls_cacert")
-        val tls_cacertdir = syncrepl.getString("tls_cacertdir")
-        val tls_reqcert = syncrepl.getString("tls_reqcert") //never|allow|try|demand
+        val syncrepl        = config.getConfig("scala-ldap-server.syncrepl")
+        val replicaId       = syncrepl.getString("rid")
+        val providerUri     = syncrepl.getString("providerUri")
+        val syncType        = syncrepl.getString("syncType") //refreshOnly or RefreshAndPersist
+        val interval        = syncrepl.getString("interval")
+        val searchbase      = syncrepl.getString("searchbase")
+        val filter          = syncrepl.getString("filter")
+        val scope           = syncrepl.getString("scope") //sub|one|base
+        val attrs           = syncrepl.getStringList("attrs")
+        val attrsOnly       = syncrepl.getString("attrsOnly")
+        val sizeLimit       = syncrepl.getString("sizeLimit")
+        val timeLimit       = syncrepl.getString("timeLimit")
+        val schemaChecking  = syncrepl.getString("schemaiChecking") //on|off
+        val bindMethod      = syncrepl.getString("bindMethod") //simple|sasl
+        val binddn          = syncrepl.getString("binddn")
+        val saslmech        = syncrepl.getString("saslmech")
+        val authcid         = syncrepl.getString("authcid")
+        val authzid         = syncrepl.getString("authzid")
+        val credentials     = syncrepl.getString("credentials")
+        val realm           = syncrepl.getString("realm")
+        val secprops        = syncrepl.getStringList("secprops")
+        val startttls       = syncrepl.getString("startttls") //yes|critical
+        val tls_cert        = syncrepl.getString("tls_cert")
+        val tls_key         = syncrepl.getString("tls_key")
+        val tls_cacert      = syncrepl.getString("tls_cacert")
+        val tls_cacertdir   = syncrepl.getString("tls_cacertdir")
+        val tls_reqcert     = syncrepl.getString("tls_reqcert") //never|allow|try|demand
         val tls_ciphersuite = syncrepl.getStringList("tls_ciphersuite")
-        val tls_crlcheck = syncrepl.getString("tls_crlchcek") //none|peer|all
-        val logbase = syncrepl.getString("logbase")
-        val logfilter = syncrepl.getString("logfilter")
-        val syncdata = syncrepl.getString("syncdata") //default|accesslog|changelog
+        val tls_crlcheck    = syncrepl.getString("tls_crlchcek") //none|peer|all
+        val logbase         = syncrepl.getString("logbase")
+        val logfilter       = syncrepl.getString("logfilter")
+        val syncdata        = syncrepl.getString("syncdata") //default|accesslog|changelog
 
       }
       //        syncrepl rid=<replica ID>
@@ -95,16 +108,13 @@ object RFC4533Plugin extends Plugin {
       // TODO Figure out if there's a server that we need to sync with, and sync with it
 
     }
-  }
 
-  override def decodeApplication(
-      applicationAsn1: Asn1Application): Option[MessageProtocolOp] = {
+  override def decodeApplication(applicationAsn1: Asn1Application): Option[MessageProtocolOp] = {
     import SyncInfoMessage._
     applicationAsn1.tag match {
       case 25 ⇒ //IntermediateResponse
         applicationAsn1.value.toSeq match {
-          case Seq(Asn1String(SyncInfoMessage.oid.value),
-                   details: Asn1Sequence) ⇒
+          case Seq(Asn1String(SyncInfoMessage.oid.value), details: Asn1Sequence) ⇒
             details.value.toSeq match {
               case Seq(Asn1Number(0), Asn1String(cookieStr)) =>
                 Some(SyncInfoMessage(Cookie(SyncCookie(cookieStr))))
@@ -140,8 +150,7 @@ object RFC4533Plugin extends Plugin {
                   }
                   .toSet
                   .flatten
-                Some(
-                  SyncInfoMessage(SyncIdSet(cookie, refreshDeletes, syncUUIDs)))
+                Some(SyncInfoMessage(SyncIdSet(cookie, refreshDeletes, syncUUIDs)))
               case _ =>
                 throw new Error(s"Unknown Sync Info Message: ${details}")
             }
@@ -150,7 +159,7 @@ object RFC4533Plugin extends Plugin {
       case _ => None //Don't know this dude
     }
   }
-  override def decodeControl(controlAsn1: Asn1Object): Option[Control] = {
+  override def decodeControl(controlAsn1: Asn1Object): Option[Control] =
     controlAsn1 match {
       case Seq(Asn1String(LDAPContentSynchronization.oid.value),
                Asn1Boolean(criticality),
@@ -175,8 +184,7 @@ object RFC4533Plugin extends Plugin {
           case Asn1String(str) if (str != syncUUID) => SyncCookie(str)
         }
         Some(SyncStateControl(state, UUID.fromString(syncUUID), cookie))
-      case Seq(Asn1String(LDAPContentSynchronizationDone.oid.value),
-               details: Asn1Sequence) =>
+      case Seq(Asn1String(LDAPContentSynchronizationDone.oid.value), details: Asn1Sequence) =>
         val seq = details.value.toSeq
         val cookie = seq.collectFirst {
           case Asn1String(str) => SyncCookie(str)
@@ -186,7 +194,6 @@ object RFC4533Plugin extends Plugin {
         Some(SyncDoneControl(cookie, refreshDeletes))
       case _ => None //Don't know this dude
     }
-  }
 
   override def operate(msg: LdapMessage,
                        preResults: Seq[LdapMessage],

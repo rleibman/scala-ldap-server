@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2017  Roberto Leibman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package ldap
 
 import java.net.InetSocketAddress
@@ -21,13 +38,12 @@ case class LdapSession(userDN: String,
 }
 
 object LdapSessionManager extends Config {
-  val name = "sessionManager"
+  val name          = "sessionManager"
   val sessionMaxAge = 3 minutes
   val checkInterval = 1 minute
 
   trait Message
-  case class StartSession(userDN: String, address: InetSocketAddress)
-      extends Message
+  case class StartSession(userDN: String, address: InetSocketAddress) extends Message
   case class ExpireSession(address: InetSocketAddress)
   case class EndSession(address: InetSocketAddress)
   case class SessionHeartbeat(address: InetSocketAddress)
@@ -44,7 +60,7 @@ object LdapSessionManager extends Config {
 class LdapSessionManager extends Actor {
   import LdapSessionManager._
   import context.dispatcher
-  val log = Logging(context.system, this)
+  val log              = Logging(context.system, this)
   private val sessions = scala.collection.mutable.Map.empty[String, LdapSession]
 
   def receive = {
@@ -55,9 +71,7 @@ class LdapSessionManager extends Actor {
           userDN,
           address,
           System.currentTimeMillis(),
-          context.system.scheduler.scheduleOnce(sessionMaxAge,
-                                                self,
-                                                ExpireSession(address))
+          context.system.scheduler.scheduleOnce(sessionMaxAge, self, ExpireSession(address))
         )
       )
     case EndSession(address) =>
@@ -70,9 +84,8 @@ class LdapSessionManager extends Actor {
         session.cancellable.cancel()
         val cancellable = context.system.scheduler
           .scheduleOnce(sessionMaxAge, self, ExpireSession(address))
-        sessions += (address.toString() -> session.copy(
-          lastHeartBeat = System.currentTimeMillis(),
-          cancellable = cancellable))
+        sessions += (address.toString() -> session.copy(lastHeartBeat = System.currentTimeMillis(),
+                                                        cancellable = cancellable))
       }
     case GetSession(address) =>
       sender ! sessions.get(address.toString())

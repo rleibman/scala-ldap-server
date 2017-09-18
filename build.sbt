@@ -15,15 +15,84 @@
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-name := "scala-ldap-server"
-
-organization := "com.dienique"
-
-version := "0.0.5"
-
-scalaVersion := "2.12.3"
-
+// *****************************************************************************
+// Projects
+// *****************************************************************************
 lazy val akkaVersion = "2.5.4"
+
+lazy val root =
+  project
+    .in(file("."))
+    .enablePlugins(AutomateHeaderPlugin, GitVersioning, BuildInfoPlugin)
+    .settings(settings)
+    .settings(
+      libraryDependencies ++= Seq(
+        "com.typesafe.akka"    %% "akka-slf4j"         % akkaVersion withSources (),
+        "com.github.pathikrit" %% "better-files"       % "3.1.0" withSources (),
+        "com.typesafe.akka"    %% "akka-actor"         % akkaVersion withSources (),
+        "com.typesafe.akka"    %% "akka-testkit"       % akkaVersion withSources (),
+        "com.typesafe.akka"    %% "akka-stream"        % akkaVersion withSources (),
+        "com.typesafe.akka"    %% "akka-cluster-tools" % akkaVersion withSources (),
+        "org.reactivemongo"    %% "reactivemongo"      % "0.12.6" withSources (),
+        "ch.qos.logback"       % "logback-classic"     % "1.2.3" withSources (),
+        "ch.qos.logback"       % "logback-core"        % "1.2.3" withSources (),
+        "org.scalacheck"       %% "scalacheck"         % "1.13.5" withSources (),
+        "org.scalatest"        %% "scalatest"          % "3.0.4" % "test" withSources (),
+        "com.typesafe.akka"    %% "akka-testkit"       % akkaVersion % "compile,  test" withSources ()
+      )
+    )
+
+// *****************************************************************************
+// Settings
+// *****************************************************************************
+
+lazy val settings =
+	commonSettings ++
+	gitSettings ++
+	scalafmtSettings ++
+	Revolver.settings ++
+	buildInfoSettings
+
+lazy val commonSettings =
+  Seq(
+    // scalaVersion from .travis.yml via sbt-travisci
+    // scalaVersion := "2.12.3",
+    name := "scala-ldap-server",
+    organization := "net.leibman",
+    organizationName := "Roberto Leibman",
+    startYear := Some(2017),
+    licenses += "GPL-3.0" -> url("https://www.gnu.org/licenses/gpl-3.0.en.html"),
+    version := "0.0.5",
+    scalacOptions ++= Seq(
+      "-unchecked",
+      "-deprecation",
+      "-language:_",
+      "-target:jvm-1.8",
+      "-encoding",
+      "UTF-8"
+    ),
+    unmanagedSourceDirectories.in(Compile) := Seq(scalaSource.in(Compile).value),
+    unmanagedSourceDirectories.in(Test) := Seq(scalaSource.in(Test).value)
+  )
+
+lazy val gitSettings =
+  Seq(
+    git.useGitDescribe := true
+  )
+
+lazy val scalafmtSettings =
+  Seq(
+    scalafmtOnCompile := true,
+    scalafmtOnCompile.in(Sbt) := false,
+    scalafmtVersion := "1.2.0"
+  )
+
+lazy val buildInfoSettings = Seq(
+  buildInfoOptions += BuildInfoOption.ToJson,
+  buildInfoOptions += BuildInfoOption.BuildTime,
+  buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion),
+  buildInfoPackage := "buildinfo"
+)
 
 ///////////////////////////////////////////////////////////////////////////
 // Packaging Stuff
@@ -60,18 +129,7 @@ mappings in Universal += {
  */
 ///////////////////////////////////////////////////////////////////////////
 
-libraryDependencies += "com.typesafe.akka" %% "akka-slf4j" % akkaVersion withSources ()
-libraryDependencies += "com.github.pathikrit" %% "better-files" % "3.1.0" withSources ()
-libraryDependencies += "com.typesafe.akka" %% "akka-actor" % akkaVersion withSources ()
-libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion withSources ()
-libraryDependencies += "com.typesafe.akka" %% "akka-stream" % akkaVersion withSources ()
-libraryDependencies += "com.typesafe.akka" %% "akka-cluster-tools" % akkaVersion withSources ()
-libraryDependencies += "org.reactivemongo" %% "reactivemongo" % "0.12.6" withSources ()
-libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.2.3"
-libraryDependencies += "ch.qos.logback" % "logback-core" % "1.2.3"
-libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.4" % "test" withSources ()
-libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % akkaVersion % "compile,  test" withSources ()
-
+/*
 scalacOptions ++= Seq(
   "-unchecked", // Enable additional warnings where generated code depends on assumptions.
   "-deprecation", // Emit warning and location for usages of deprecated APIs.
@@ -121,18 +179,10 @@ scalacOptions ++= Seq(
   "-Ywarn-unused:patvars", // Warn if a variable bound in a pattern is unused.
   "-Ywarn-unused:privates" // Warn if a private member is unused.
 )
-
-Revolver.settings
+ */
 //Revolver.enableDebugging(port = 9999, suspend = true)
 
-fork in run := true
-
-enablePlugins(BuildInfoPlugin)
-
-buildInfoOptions += BuildInfoOption.ToJson
-buildInfoOptions += BuildInfoOption.BuildTime
-buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion)
-buildInfoPackage := "buildinfo"
-
+//fork in run := true
 // EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.ManagedSrc
 // EclipseKeys.configurations := Set(Configurations.Compile, Configurations.Test, Configurations.IntegrationTest)
+

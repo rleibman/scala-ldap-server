@@ -1,9 +1,26 @@
+/*
+ * Copyright (C) 2017  Roberto Leibman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package ldap.client
 
 import ldap._
 import asn1.BEREncoder
-import akka.actor.{Actor, Props, ActorSystem}
-import akka.io.{IO, Tcp}
+import akka.actor.{ Actor, ActorSystem, Props }
+import akka.io.{ IO, Tcp }
 import java.net.InetSocketAddress
 import scala.concurrent.Future
 import scala.concurrent.Promise
@@ -63,7 +80,7 @@ object LdapClient {
             ()
           case Received(data) =>
             val asn1Response = BEREncoder.decode(data)
-            val responses = asn1Response.map(LdapAsn1Decoder.decode)
+            val responses    = asn1Response.map(LdapAsn1Decoder.decode)
             acc ++= responses
             responses.foreach { response =>
               if (checkReady(response)) {
@@ -73,8 +90,9 @@ object LdapClient {
             ()
           case "close" =>
             connection ! Close
-            promise.failure(new Error(
-              s"I really don't know how this was closed without receiving anything"))
+            promise.failure(
+              new Error(s"I really don't know how this was closed without receiving anything")
+            )
             ()
           case a: ConnectionClosed =>
             context stop self
@@ -87,15 +105,13 @@ object LdapClient {
 
     }
   }
-  private def sendMessage(config: LdapConfig,
-                          msg: LdapMessage,
-                          checkReady: LdapMessage => Boolean)(
-      implicit system: ActorSystem): Future[List[LdapMessage]] = {
+  private def sendMessage(config: LdapConfig, msg: LdapMessage, checkReady: LdapMessage => Boolean)(
+      implicit system: ActorSystem
+  ): Future[List[LdapMessage]] = {
     val promise = Promise[List[LdapMessage]]()
     val client = system.actorOf(
-      TcpClient.props(new InetSocketAddress(config.host, config.port),
-                      promise,
-                      checkReady))
+      TcpClient.props(new InetSocketAddress(config.host, config.port), promise, checkReady)
+    )
     client ! msg
     promise.future
   }
@@ -117,26 +133,22 @@ object LdapClient {
   //  attributes: Seq[String] = Seq()
   //) extends Request
   //case class BindRequest(version: Byte, name: String, authChoice: LdapAuthentication) extends Request
-  def apply(config: LdapConfig)(
-      implicit system: ActorSystem): Future[Option[LdapClient]] = {
+  def apply(config: LdapConfig)(implicit system: ActorSystem): Future[Option[LdapClient]] = {
     import system.dispatcher
     val fut = for {
       bindResponse <- {
         val msg = LdapMessage(
           1,
-          BindRequest(3,
-                      config.authSearchUser,
-                      LdapSimpleAuthentication(config.authSearchPassword)))
+          BindRequest(3, config.authSearchUser, LdapSimpleAuthentication(config.authSearchPassword))
+        )
         sendMessage(config, msg, { _.protocolOp.isInstanceOf[BindResponse] })
           .map(_.head.protocolOp.asInstanceOf[BindResponse])
       }
       ldapClient <- bindResponse.ldapResult.opResult match {
         case LDAPResultType.success =>
           Future.successful(Some(new LdapClient(config)))
-        case LDAPResultType.invalidCredentials |
-            LDAPResultType.inappropriateAuthentication |
-            LDAPResultType.authMethodNotSupported |
-            LDAPResultType.strongerAuthRequired =>
+        case LDAPResultType.invalidCredentials | LDAPResultType.inappropriateAuthentication |
+            LDAPResultType.authMethodNotSupported | LDAPResultType.strongerAuthRequired =>
           //I separate this because they're specific to binding
           println(bindResponse.ldapResult.diagnosticMessage)
           Future.successful(None)

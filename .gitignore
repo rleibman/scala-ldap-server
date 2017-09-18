@@ -12,17 +12,33 @@ src_managed/
 project/boot/
 project/plugins/project/
 
-# Scala-IDE specific
-.scala_dependencies
-.worksheet
-
-.project
-.settings/
-.sbtserver
-.sbtserver.lock
-.cache-main
-.cache-tests
+# Eclipse
+.cache*
 .classpath
-application.conf
+.project
+.scala_dependencies
+.settings
+.target
+.worksheet
 bin/
 target/
+application.conf
+
+# IntelliJ
+.idea
+
+# ENSIME
+.ensime
+.ensime_lucene
+.ensime_cache
+
+# Mac
+.DS_Store
+
+# Akka
+ddata*
+journal
+snapshots
+
+# Log files
+*.log

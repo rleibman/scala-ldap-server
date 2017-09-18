@@ -20,10 +20,10 @@ class LdapHandlerSpec
     TestKit.shutdownActorSystem(system)
   }
   "sending a proper bindrequest" should "return a bindresponse" in {
-    handler ! LdapMessage(123,
-                          BindRequest(3,
-                                      "cn=Manager,dc=example,dc=com",
-                                      LdapSimpleAuthentication("password")))
+    handler ! LdapMessage(
+      123,
+      BindRequest(3, "cn=Manager,dc=example,dc=com", LdapSimpleAuthentication("password"))
+    )
 
     val response = expectMsg(
       List(
@@ -32,7 +32,9 @@ class LdapHandlerSpec
                                             "cn=Manager,dc=example,dc=com",
                                             "Auth successful",
                                             List()),
-                                 None))))
+                                 None))
+      )
+    )
   }
 
   //case class SearchRequest(baseObject: String, scope: SearchRequestScope, derefAliases: DerefAliases, sizeLimit: Int, timeLimit: Int, typesOnly: Boolean, filter: Option[Filter] = None, attributes: Seq[String] = Seq()) extends MessageProtocolOp
@@ -61,8 +63,7 @@ class LdapHandlerSpec
 
     assert(searchResultEntry.attributes.nonEmpty)
     assert(searchResultEntry.attributes("subschemaSubentry").nonEmpty)
-    assert(
-      searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
+    assert(searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
 
     println(response)
   }
@@ -144,15 +145,15 @@ class LdapHandlerSpec
     assert(searchResultEntry.attributes("objectClass").size === 2)
     assert(searchResultEntry.attributes("objectClass").head.nonEmpty)
     assert(searchResultEntry.attributes("objectClass").contains("top"))
-    assert(
-      searchResultEntry.attributes("objectClass").contains("ScalaLDAProotDSE"))
+    assert(searchResultEntry.attributes("objectClass").contains("ScalaLDAProotDSE"))
 
     assert(searchResultEntry.attributes("structuralObjectClass").nonEmpty)
     assert(searchResultEntry.attributes("structuralObjectClass").head.nonEmpty)
     assert(
       searchResultEntry
         .attributes("structuralObjectClass")
-        .head === "ScalaLDAProotDSE")
+        .head === "ScalaLDAProotDSE"
+    )
 
     assert(searchResultEntry.attributes("configContext").nonEmpty)
     assert(searchResultEntry.attributes("configContext").head.nonEmpty)
@@ -167,7 +168,8 @@ class LdapHandlerSpec
     assert(
       searchResultEntry
         .attributes("namingContexts")
-        .head === "dc=example,dc=com")
+        .head === "dc=example,dc=com"
+    )
 
     assert(searchResultEntry.attributes.get("supportedControl").nonEmpty)
     //assert(searchResultEntry.attributes("supportedControl").head.nonEmpty) //There is 8 on a bare bones openldap
@@ -186,13 +188,11 @@ class LdapHandlerSpec
 
     assert(searchResultEntry.attributes("subschemaSubentry").nonEmpty)
     assert(searchResultEntry.attributes("subschemaSubentry").head.nonEmpty)
-    assert(
-      searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
+    assert(searchResultEntry.attributes("subschemaSubentry").head === "cn=Subschema")
 
     //openldap does not return these, though I think it should
     assert(searchResultEntry.attributes("supportedSASLMechanisms").nonEmpty)
-    assert(
-      searchResultEntry.attributes("supportedSASLMechanisms").head.nonEmpty)
+    assert(searchResultEntry.attributes("supportedSASLMechanisms").head.nonEmpty)
     assert(searchResultEntry.attributes("vendorName").nonEmpty)
     assert(searchResultEntry.attributes("vendorName").head.nonEmpty)
     assert(searchResultEntry.attributes("vendorVersion").nonEmpty)

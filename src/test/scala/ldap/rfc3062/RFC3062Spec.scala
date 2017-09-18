@@ -24,9 +24,7 @@ class RFC3062Spec
   }
 
   "sending a simple password request change when user is empty" should "error out" in {
-    val request = ChangePasswordRequest(userIdentity = "",
-                                        oldPassword = "",
-                                        newPassword = "")
+    val request = ChangePasswordRequest(userIdentity = "", oldPassword = "", newPassword = "")
     handler ! LdapMessage(
       123,
       request
@@ -40,9 +38,8 @@ class RFC3062Spec
     assert(response.ldapResult.matchedDN == request.userIdentity)
   }
   "sending a simple password request change when user does not exist" should "error out" in {
-    val request = ChangePasswordRequest(userIdentity = "non-existing",
-                                        oldPassword = "",
-                                        newPassword = "")
+    val request =
+      ChangePasswordRequest(userIdentity = "non-existing", oldPassword = "", newPassword = "")
     handler ! LdapMessage(
       123,
       request
@@ -57,9 +54,8 @@ class RFC3062Spec
   }
   val existingUserDn = s"uid=roberto,ou=People,${BaseNode.dn}"
   "sending a simple password request change when password doesn't match" should "error out" in {
-    val request = ChangePasswordRequest(userIdentity = existingUserDn,
-                                        oldPassword = "",
-                                        newPassword = "")
+    val request =
+      ChangePasswordRequest(userIdentity = existingUserDn, oldPassword = "", newPassword = "")
     handler ! LdapMessage(
       123,
       request
@@ -73,9 +69,8 @@ class RFC3062Spec
     assert(response.ldapResult.matchedDN == request.userIdentity)
   }
   "sending a simple password request change when new password is ugly" should "error out" in {
-    val request = ChangePasswordRequest(userIdentity = existingUserDn,
-                                        oldPassword = "",
-                                        newPassword = "aoeu")
+    val request =
+      ChangePasswordRequest(userIdentity = existingUserDn, oldPassword = "", newPassword = "aoeu")
     handler ! LdapMessage(
       123,
       request
@@ -89,9 +84,8 @@ class RFC3062Spec
     assert(response.ldapResult.matchedDN == request.userIdentity)
   }
   "sending a simple password request" should "not error out" in {
-    val request = ChangePasswordRequest(userIdentity = existingUserDn,
-                                        oldPassword = "",
-                                        newPassword = "aoeu")
+    val request =
+      ChangePasswordRequest(userIdentity = existingUserDn, oldPassword = "", newPassword = "aoeu")
     handler ! LdapMessage(
       123,
       request
@@ -103,17 +97,15 @@ class RFC3062Spec
       responseMsg.head.protocolOp.asInstanceOf[ChangePasswordResponse]
     assert(response.ldapResult.opResult == LDAPResultType.success)
     assert(response.ldapResult.matchedDN == request.userIdentity)
-    println(
-      "-------------------------------------------------------------------------------------")
+    println("-------------------------------------------------------------------------------------")
     println(response.generatedPassword)
     assert(response.generatedPassword.isEmpty)
     //Bind to see if the password was actually changed
     fail()
   }
   "sending a simple password request with blank newPassword" should "not error out and return a new password" in {
-    val request = ChangePasswordRequest(userIdentity = existingUserDn,
-                                        oldPassword = "",
-                                        newPassword = "")
+    val request =
+      ChangePasswordRequest(userIdentity = existingUserDn, oldPassword = "", newPassword = "")
     handler ! LdapMessage(
       123,
       request
@@ -125,10 +117,8 @@ class RFC3062Spec
       responseMsg.head.protocolOp.asInstanceOf[ChangePasswordResponse]
     assert(response.ldapResult.opResult == LDAPResultType.success)
     assert(response.ldapResult.matchedDN == request.userIdentity)
-    println(
-      "-------------------------------------------------------------------------------------")
-    assert(
-      response.generatedPassword.nonEmpty && response.generatedPassword.get.nonEmpty)
+    println("-------------------------------------------------------------------------------------")
+    assert(response.generatedPassword.nonEmpty && response.generatedPassword.get.nonEmpty)
   }
 
 }

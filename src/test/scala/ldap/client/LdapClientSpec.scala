@@ -15,10 +15,9 @@ class LdapClientSpec
     with BeforeAndAfterAll {
   //  LdapServer.main(Array.empty)
 
-  override def afterAll() = {
+  override def afterAll() =
     //    LdapServer.shutdown()
     TestKit.shutdownActorSystem(system)
-  }
 
   val config = LdapConfig(
     host = "localhost",
@@ -44,8 +43,9 @@ class LdapClientSpec
     )
     for {
       client <- LdapClient(config)
-      response <- client.fold(Future.successful(List[SearchResult]()))(client =>
-        client.sendSearchRequest(request))
+      response <- client.fold(Future.successful(List[SearchResult]()))(
+        client => client.sendSearchRequest(request)
+      )
       asserted <- {
         println(response.head)
         assert(client != null)
@@ -65,8 +65,9 @@ class LdapClientSpec
     )
     for {
       client <- LdapClient(config)
-      response <- client.fold(Future.successful(List[SearchResult]()))(client =>
-        client.sendSearchRequest(request))
+      response <- client.fold(Future.successful(List[SearchResult]()))(
+        client => client.sendSearchRequest(request)
+      )
       asserted <- {
         println(response.head)
         assert(client != null)

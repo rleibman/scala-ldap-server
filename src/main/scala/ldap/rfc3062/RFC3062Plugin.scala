@@ -1,3 +1,20 @@
+/*
+ * Copyright (C) 2017  Roberto Leibman
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package ldap.rfc3062
 
 import akka.util.ByteString
@@ -13,13 +30,12 @@ import dao.DAO
   */
 object RFC3062Plugin extends Plugin {
 
-  val oid = LDAPOID("1.3.6.1.4.1.4203.1.11.1")
+  val oid            = LDAPOID("1.3.6.1.4.1.4203.1.11.1")
   val passwordPolicy = SimplePasswordPolicy //TODO make this dynamic and pluggable
   override def supportedExtensions: Seq[ldap.SupportedExtension] =
-    Seq(SupportedExtension(oid, "Password ModifY Request"))
+    Seq(SupportedExtension(oid, "Password Modify Request"))
 
-  override def decodeApplication(
-      applicationAsn1: Asn1Application): Option[MessageProtocolOp] = {
+  override def decodeApplication(applicationAsn1: Asn1Application): Option[MessageProtocolOp] =
     applicationAsn1.tag match {
       case 23 => //Extended
         applicationAsn1.value.toSeq match {
@@ -29,25 +45,19 @@ object RFC3062Plugin extends Plugin {
               case List(Asn1String(userIdentity),
                         Asn1String(oldPassword),
                         Asn1String(requestedPassword)) =>
-                Option(
-                  ChangePasswordRequest(userIdentity,
-                                        oldPassword,
-                                        requestedPassword))
+                Option(ChangePasswordRequest(userIdentity, oldPassword, requestedPassword))
               case _ => None //Don't know this dude
             }
           case _ => None //Don't know this dude
         }
       case _ => None //Don't know this dude
     }
-  }
 
   override def operate(msg: LdapMessage,
                        preResults: Seq[LdapMessage],
                        dao: DAO): Future[Seq[LdapMessage]] = Future.successful {
     msg.protocolOp match {
-      case ChangePasswordRequest(userIdentity,
-                                 oldPassword,
-                                 requestedPassword) =>
+      case ChangePasswordRequest(userIdentity, oldPassword, requestedPassword) =>
         //TODO Do the password change
         // The userIdentity field, if present, SHALL contain an octet string
         // representation of the user associated with the request.  This string
@@ -61,33 +71,29 @@ object RFC3062Plugin extends Plugin {
           passwordPolicy.validatePassword(oldPassword, requestedPassword)
         val response = if (valid.isEmpty) {
           if (userIdentity.isEmpty()) {
-            val result = LdapResult(
-              LDAPResultType.noSuchObject,
-              userIdentity,
-              s"Could not change password: ${valid.mkString(".")}, user is empty")
+            val result =
+              LdapResult(LDAPResultType.noSuchObject,
+                         userIdentity,
+                         s"Could not change password: ${valid.mkString(".")}, user is empty")
             LdapMessage(msg.messageId, ChangePasswordResponse(result, None))
           } else {
             //All good, change the password
             if (requestedPassword.isEmpty && passwordPolicy.generatePasswordIfEmpty) {
               val generatedPassword = "" //TODO generate a password here
               //TODO save password
-              val result = LdapResult(LDAPResultType.success,
-                                      userIdentity,
-                                      "Password changed successfully")
-              LdapMessage(
-                msg.messageId,
-                ChangePasswordResponse(result, Some(generatedPassword)))
+              val result =
+                LdapResult(LDAPResultType.success, userIdentity, "Password changed successfully")
+              LdapMessage(msg.messageId, ChangePasswordResponse(result, Some(generatedPassword)))
             } else if (requestedPassword.isEmpty) {
-              val result = LdapResult(
-                LDAPResultType.unwillingToPerform,
-                userIdentity,
-                s"Could not change password: You may not set the password to blank")
+              val result =
+                LdapResult(LDAPResultType.unwillingToPerform,
+                           userIdentity,
+                           s"Could not change password: You may not set the password to blank")
               LdapMessage(msg.messageId, ChangePasswordResponse(result, None))
             } else {
               //TODO save password
-              val result = LdapResult(LDAPResultType.success,
-                                      userIdentity,
-                                      "Password changed successfully")
+              val result =
+                LdapResult(LDAPResultType.success, userIdentity, "Password changed successfully")
               LdapMessage(msg.messageId, ChangePasswordResponse(result, None))
             }
           }
