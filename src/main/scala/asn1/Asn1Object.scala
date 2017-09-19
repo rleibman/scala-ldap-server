@@ -73,7 +73,7 @@ case class Asn1Double(val value: Double) extends Asn1Object
 
 case class Asn1ContextSpecific(tag: Int, value: Array[Byte]) extends Asn1Object {
   override def toString =
-    s"Asn1ContextSpecific(${value.map(_.toInt.toHexString).mkString(", 0x")})"
+    s"Asn1ContextSpecific($tag, 0x${value.map(_.toInt.toHexString).mkString(", 0x")})"
   override def equals(obj: Any) =
     if (!obj.isInstanceOf[Asn1ContextSpecific]) {
       false

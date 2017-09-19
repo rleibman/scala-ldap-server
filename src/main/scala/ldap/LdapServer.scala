@@ -33,10 +33,84 @@ import akka.io.Tcp
 import akka.io.Tcp.Bind
 import dao.MongoDAO
 import scala.language.postfixOps
+import com.typesafe.sslconfig.akka.AkkaSSLConfig
+import java.security.KeyStore
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.SSLContext
+import java.security.SecureRandom
+import akka.stream.TLSProtocol
+import akka.stream.scaladsl.TLS
+import akka.stream.TLSRole
+import javax.net.ssl.X509TrustManager
+import java.security.cert.X509Certificate
+import javax.net.ssl.KeyManager
+import akka.util.ByteString
+import akka.stream.scaladsl.Flow
+import com.typesafe.sslconfig.ssl.ClientAuth
+import akka.stream.TLSClientAuth
+import akka.stream.scaladsl.BidiFlow
 
 class LdapListener extends Actor with Config {
   import context.system
   import akka.io.Tcp._
+
+  def tlsStage = {
+    val sslConfig = AkkaSSLConfig()
+    val config    = sslConfig.config
+
+    // create a ssl-context that ignores self-signed certificates
+    implicit val sslContext: SSLContext = {
+      object WideOpenX509TrustManager extends X509TrustManager {
+        override def checkClientTrusted(chain: Array[X509Certificate], authType: String) = ()
+        override def checkServerTrusted(chain: Array[X509Certificate], authType: String) = ()
+        override def getAcceptedIssuers                                                  = Array[X509Certificate]()
+      }
+
+      val context = SSLContext.getInstance("TLS")
+      context.init(Array[KeyManager](), Array(WideOpenX509TrustManager), null)
+      context
+    }
+    // protocols
+    val defaultParams    = sslContext.getDefaultSSLParameters()
+    val defaultProtocols = defaultParams.getProtocols()
+    val protocols        = sslConfig.configureProtocols(defaultProtocols, config)
+    defaultParams.setProtocols(protocols)
+
+    // ciphers
+    val defaultCiphers = defaultParams.getCipherSuites()
+    val cipherSuites   = sslConfig.configureCipherSuites(defaultCiphers, config)
+    defaultParams.setCipherSuites(cipherSuites)
+
+    val firstSession = new TLSProtocol.NegotiateNewSession(None, None, None, None)
+      .withCipherSuites(cipherSuites: _*)
+      .withProtocols(protocols: _*)
+      .withParameters(defaultParams)
+
+    val clientAuth = getClientAuth(config.sslParametersConfig.clientAuth)
+    clientAuth map { firstSession.withClientAuth(_) }
+
+    val tls = TLS(sslContext, firstSession, TLSRole.server)
+
+    val pf: PartialFunction[TLSProtocol.SslTlsInbound, ByteString] = {
+      case TLSProtocol.SessionBytes(_, sb) => ByteString.fromByteBuffer(sb.asByteBuffer)
+    }
+
+    val tlsSupport = BidiFlow.fromFlows(Flow[ByteString].map(TLSProtocol.SendBytes),
+                                        Flow[TLSProtocol.SslTlsInbound].collect(pf));
+
+    tlsSupport.atop(tls);
+  }
+
+  def getClientAuth(auth: ClientAuth) =
+    if (auth.equals(ClientAuth.want)) {
+      Some(TLSClientAuth.want)
+    } else if (auth.equals(ClientAuth.need)) {
+      Some(TLSClientAuth.need)
+    } else if (auth.equals(ClientAuth.none)) {
+      Some(TLSClientAuth.none)
+    } else {
+      None
+    }
 
   val log = Logging(context.system, getClass)
 

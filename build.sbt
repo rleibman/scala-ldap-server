@@ -186,3 +186,4 @@ scalacOptions ++= Seq(
 // EclipseKeys.createSrc := EclipseCreateSrc.Default + EclipseCreateSrc.ManagedSrc
 // EclipseKeys.configurations := Set(Configurations.Compile, Configurations.Test, Configurations.IntegrationTest)
 
+watchSources := Seq(WatchSource(baseDirectory.value / "src"))
